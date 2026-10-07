@@ -5,16 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Gudang – Batu Ceper (Jan–Sep 2026)</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="data-perbulan.js"></script>
 <style>
 :root{--bg:#0f172a;--card:#1e293b;--card2:#334155;--txt:#f1f5f9;--mut:#94a3b8;--acc:#22c55e;--acc2:#38bdf8;--warn:#f59e0b;--red:#ef4444}
 *{box-sizing:border-box}body{margin:0;font-family:'Segoe UI',system-ui,Arial;background:var(--bg);color:var(--txt)}
 header{padding:20px 24px;background:linear-gradient(90deg,#16a34a,#0ea5e9);color:#fff}
 header h1{margin:0;font-size:22px}header p{margin:4px 0 0;opacity:.9;font-size:13px}
 .wrap{padding:20px 24px;max-width:1280px;margin:auto}
-.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;align-items:center}
 .toolbar select,.toolbar input{background:var(--card);color:var(--txt);border:1px solid var(--card2);padding:8px 12px;border-radius:8px}
 .btn{background:var(--acc);border:0;color:#052e16;font-weight:700;padding:9px 16px;border-radius:8px;cursor:pointer}
 .btn.ghost{background:var(--card2);color:#fff}
+.btn.warn{background:var(--warn);color:#431407}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px}
 .kpi{background:var(--card);border:1px solid var(--card2);border-radius:12px;padding:14px}
 .kpi small{color:var(--mut);font-size:12px}.kpi b{display:block;font-size:22px;margin-top:4px}.kpi span{font-size:12px;color:var(--mut)}
@@ -22,8 +24,10 @@ header h1{margin:0;font-size:22px}header p{margin:4px 0 0;opacity:.9;font-size:1
 .card{background:var(--card);border:1px solid var(--card2);border-radius:12px;padding:16px;margin-bottom:12px}
 .card h3{margin:0 0 10px;font-size:15px}
 table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px 10px;border-bottom:1px solid var(--card2);text-align:left}th{color:var(--mut);font-size:12px;text-transform:uppercase}td.n,th.n{text-align:right}
+tr.hl td{background:rgba(34,197,94,.12);font-weight:700}
 .badge{display:inline-block;background:#052e16;color:#4ade80;padding:2px 8px;border-radius:20px;font-size:11px}
-#status{font-size:13px;color:var(--mut);margin-bottom:12px}
+#status{font-size:13px;color:var(--mut);margin-bottom:8px}
+#periodeInfo{font-size:13px;margin-bottom:12px;color:#fde68a}
 canvas{max-height:340px}
 footer{color:var(--mut);font-size:12px;padding:20px;text-align:center}
 </style>
@@ -38,31 +42,34 @@ footer{color:var(--mut);font-size:12px;padding:20px;text-align:center}
 <div class="toolbar">
 <label>Bulan: <select id="fBulan"><option value="all">Semua Bulan</option></select></label>
 <label>Cari barang: <input id="fCari" placeholder="cth: burger, ayam…"></label>
-<button class="btn" id="btnRefresh">↻ Refresh Live</button>
+<button class="btn" id="btnTampil">Tampilkan</button>
+<button class="btn warn" id="btnReset">Reset</button>
+<button class="btn ghost" id="btnRefresh">↻ Refresh Live</button>
 <label class="btn ghost" style="cursor:pointer">📂 Upload CSV<input type="file" id="fFile" accept=".csv" hidden></label>
 <button class="btn ghost" onclick="window.print()">🖨 Cetak</button>
 </div>
+<div id="periodeInfo"></div>
 
 <div class="kpis" id="kpis"></div>
 
 <div class="grid2">
-<div class="card"><h3>📈 Kuantitas per Bulan + Rata-rata</h3><canvas id="cBulan"></canvas></div>
-<div class="card"><h3>🍩 Komposisi Satuan</h3><canvas id="cSatuan"></canvas></div>
+<div class="card"><h3 id="tBulanChart">📈 Kuantitas per Bulan + Rata-rata</h3><canvas id="cBulan"></canvas></div>
+<div class="card"><h3 id="tSatuanChart">🍩 Komposisi Satuan</h3><canvas id="cSatuan"></canvas></div>
 </div>
 <div class="grid2">
-<div class="card"><h3>🏆 Top 10 Barang (Kuantitas Terbanyak)</h3><canvas id="cItem"></canvas></div>
-<div class="card"><h3>🚚 Top 10 Pelanggan / Cabang Tujuan</h3><canvas id="cPel"></canvas></div>
+<div class="card"><h3 id="tItemChart">🏆 Top 10 Barang (Kuantitas Terbanyak)</h3><canvas id="cItem"></canvas></div>
+<div class="card"><h3 id="tPelChart">🚚 Top 10 Pelanggan / Cabang Tujuan</h3><canvas id="cPel"></canvas></div>
 </div>
 <div class="grid2">
 <div class="card"><h3>🗓 Tabel Rekap per Bulan</h3><div style="overflow:auto"><table id="tBulan"></table></div></div>
-<div class="card"><h3>📋 Top 15 Barang + Share</h3><div style="overflow:auto;max-height:380px"><table id="tItem"></table></div></div>
+<div class="card"><h3 id="tItemTitle">📋 Top 15 Barang + Share</h3><div style="overflow:auto;max-height:380px"><table id="tItem"></table></div></div>
 </div>
-<div class="card"><h3>🔎 Detail Barang (filter bulan + pencarian)</h3><div style="overflow:auto;max-height:400px"><table id="tDetail"></table></div></div>
+<div class="card"><h3 id="tDetailTitle">🔎 Detail Barang</h3><div style="overflow:auto;max-height:400px"><table id="tDetail"></table></div></div>
 </div>
-<footer>Snapshot bawaan: Jan–Sep 2026 • Total 2.123.551 pcs-eq • 12.638 DO • 102 SKU • 341 pelanggan • Refresh Live mengambil CSV terbaru dari Google Sheets.</footer>
+<footer>Snapshot bawaan: Jan–Sep 2026 • Total 2.123.551 pcs-eq • 12.638 DO • 102 SKU • 341 pelanggan • Pilih bulan lalu klik Tampilkan untuk filter seluruh dashboard.</footer>
 
 <script>
-// ===== SNAPSHOT (hasil analisa 91.303 baris, diverifikasi via eksekusi) =====
+// ===== SNAPSHOT agregat =====
 const SHEET_ID="1MScpYEAwHbmaBWF7QBA99TevwQbPNLuEz3L8pERYyFE", GID="1106773458";
 const SNAP={
 monthly:{"2026-01":{qty:243835,do:1649,sku:80,pel:228,hari:27},"2026-02":{qty:198768,do:1474,sku:79,pel:225,hari:24},"2026-03":{qty:208258,do:1279,sku:86,pel:279,hari:26},"2026-04":{qty:391145,do:2019,sku:92,pel:302,hari:27},"2026-05":{qty:342077,do:2032,sku:82,pel:301,hari:27},"2026-06":{qty:193679,do:1010,sku:70,pel:235,hari:26},"2026-07":{qty:176226,do:932,sku:52,pel:207,hari:26},"2026-08":{qty:169673,do:1012,sku:64,pel:226,hari:26},"2026-09":{qty:199890,do:1231,sku:66,pel:220,hari:28}},
@@ -72,86 +79,146 @@ bySatuan:{"Pack":1716852,"Pcs":256287,"Bks":66209,"Dus":41071,"Ikat":38721,"Dus4
 totals:{qty:2123551,do:12638,sku:102,pel:341,hari:237},
 topDays:[["21 Apr 2026",42464],["03 May 2026",37398],["08 May 2026",33274],["20 Apr 2026",32098],["06 Sep 2026",31581]]
 };
-const NAMA_BULAN={"2026-01":"Jan 26","2026-02":"Feb 26","2026-03":"Mar 26","2026-04":"Apr 26","2026-05":"Mei 26","2026-06":"Jun 26","2026-07":"Jul 26","2026-08":"Agu 26","2026-09":"Sep 26"};
+const NAMA_BULAN={"2026-01":"Jan 2026","2026-02":"Feb 2026","2026-03":"Mar 2026","2026-04":"Apr 2026","2026-05":"Mei 2026","2026-06":"Jun 2026","2026-07":"Jul 2026","2026-08":"Agu 2026","2026-09":"Sep 2026"};
 let DB={...SNAP, live:false, allItems:SNAP.topItems.map(([nama,qty])=>({nama,qty}))};
+let APPLIED={bulan:"all", cari:""};
 const fmt=n=>Number(n||0).toLocaleString("id-ID");
 let charts={};
+const IBM=()=> (typeof ITEMBYMONTH!=="undefined"?ITEMBYMONTH:(DB.itemByMonth||{}));
+const SBM=()=> (typeof SATBYMONTH!=="undefined"?SATBYMONTH:(DB.satByMonth||{}));
+const PBM=()=> (typeof PELBYMONTH!=="undefined"?PELBYMONTH:(DB.pelByMonth||{}));
+
+function topItemBulan(b,n){
+  const src=IBM(), out=[];
+  for(const nama of Object.keys(src)){const q=src[nama][b]||0; if(q>0) out.push([nama,q]);}
+  return out.sort((a,c)=>c[1]-a[1]).slice(0,n);
+}
+function topPelBulan(b,n){
+  const src=PBM(), out=[];
+  for(const p of Object.keys(src)){const q=src[p][b]||0; if(q>0) out.push([p,q]);}
+  return out.sort((a,c)=>c[1]-a[1]).slice(0,n);
+}
+function satBulan(b){
+  const src=SBM(), out={};
+  for(const s of Object.keys(src)){const q=src[s][b]||0; if(q>0) out[s]=q;}
+  return out;
+}
+
 function render(){
   const keys=Object.keys(DB.monthly).sort();
-  const total=DB.totals.qty, avgBulan=Math.round(total/keys.length);
-  const avgHari=Math.round(total/(DB.totals.hari||237)), avgDO=Math.round(total/(DB.totals.do||1));
-  const maxK=keys.reduce((a,b)=>DB.monthly[b].qty>DB.monthly[a].qty?b:a,keys[0]);
-  const topItem=DB.topItems[0];
-  document.getElementById("kpis").innerHTML=`
-  <div class="kpi"><small>Total Kuantitas (Jan–Sep)</small><b>${fmt(total)}</b><span>semua satuan (pcs-eq)</span></div>
-  <div class="kpi"><small>Rata-rata / Bulan</small><b>${fmt(avgBulan)}</b><span>total ÷ ${keys.length} bulan</span></div>
-  <div class="kpi"><small>Bulan Tertinggi</small><b>${NAMA_BULAN[maxK]||maxK}</b><span>${fmt(DB.monthly[maxK].qty)} (${(DB.monthly[maxK].qty/total*100).toFixed(1)}%)</span></div>
-  <div class="kpi"><small>Kuantitas Terbanyak (SKU)</small><b style="font-size:16px">${topItem[0]}</b><span>${fmt(topItem[1])} • ${(topItem[1]/total*100).toFixed(1)}% dari total</span></div>
-  <div class="kpi"><small>Total DO / Surat Jalan</small><b>${fmt(DB.totals.do)}</b><span>rata-rata ${fmt(avgDO)}/DO</span></div>
-  <div class="kpi"><small>Rata-rata Harian</small><b>${fmt(avgHari)}/hari</b><span>${fmt(DB.totals.hari)} hari aktif • tersibuk ${DB.topDays[0][0]} (${fmt(DB.topDays[0][1])})</span></div>
-  <div class="kpi"><small>SKU Aktif</small><b>${fmt(DB.totals.sku)}</b><span>${fmt(DB.totals.pel)} pelanggan/cabang tujuan</span></div>
-  <div class="kpi"><small>Status Data</small><b style="font-size:15px">${DB.live?"🟢 LIVE Sheets":"🟡 Snapshot"}</b><span>${DB.live?"diperbarui dari Google Sheets":"klik Refresh Live untuk update"}</span></div>`;
-  // filter bulan dropdown
   const sel=document.getElementById("fBulan");
   if(sel.options.length<=1){keys.forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=NAMA_BULAN[k]||k;sel.appendChild(o);});}
-  // charts
+  sel.value=APPLIED.bulan;
+  const B=APPLIED.bulan, q=APPLIED.cari;
+  const isAll=(B==="all");
+  const label=isAll?"Semua Bulan (Jan–Sep 2026)":(NAMA_BULAN[B]||B);
+  document.getElementById("periodeInfo").innerHTML=`📌 Periode aktif: <b>${label}</b>`+(isAll?"":` — seluruh KPI, grafik & tabel difilter bulan ini. Klik <b>Reset</b> untuk kembali.`);
+  document.getElementById("tSatuanChart").textContent=isAll?"🍩 Komposisi Satuan (Semua Bulan)":`🍩 Komposisi Satuan (${label})`;
+  document.getElementById("tItemChart").textContent=isAll?"🏆 Top 10 Barang (Semua Bulan)":`🏆 Top 10 Barang (${label})`;
+  document.getElementById("tPelChart").textContent=isAll?"🚚 Top 10 Pelanggan (Semua Bulan)":`🚚 Top 10 Pelanggan (${label})`;
+  document.getElementById("tItemTitle").textContent=isAll?"📋 Top 15 Barang + Share":"📋 Top 15 Barang + Share ("+label+")";
+  document.getElementById("tDetailTitle").textContent=isAll?"🔎 Detail Barang (Semua Bulan)":"🔎 Detail Barang ("+label+")";
+
+  const total=DB.totals.qty, avgBulan=Math.round(total/keys.length);
+  const maxK=keys.reduce((a,b)=>DB.monthly[b].qty>DB.monthly[a].qty?b:a,keys[0]);
+
+  // dataset sesuai periode
+  let kpiQty, kpiDO, kpiSKU, kpiPel, kpiHari, topItem, topItemShare, avgHari, avgDO, bySat, ti, tp;
+  if(isAll){
+    kpiQty=total; kpiDO=DB.totals.do; kpiSKU=DB.totals.sku; kpiPel=DB.totals.pel; kpiHari=DB.totals.hari;
+    avgHari=Math.round(total/(DB.totals.hari||237)); avgDO=Math.round(total/(DB.totals.do||1));
+    topItem=DB.topItems[0]; topItemShare=(topItem[1]/total*100);
+    bySat=DB.bySatuan; ti=DB.topItems.slice(0,10); tp=DB.topPel.slice(0,10);
+  } else {
+    const m=DB.monthly[B];
+    kpiQty=m.qty; kpiDO=m.do; kpiSKU=m.sku; kpiPel=m.pel; kpiHari=m.hari;
+    avgHari=Math.round(m.qty/m.hari); avgDO=Math.round(m.qty/m.do);
+    const tb=topItemBulan(B,1); topItem=tb.length?tb[0]:["—",0]; topItemShare=m.qty?(topItem[1]/m.qty*100):0;
+    bySat=satBulan(B); ti=topItemBulan(B,10); tp=topPelBulan(B,10);
+  }
+
+  document.getElementById("kpis").innerHTML=`
+  <div class="kpi"><small>Total Kuantitas (${label})</small><b>${fmt(kpiQty)}</b><span>${isAll?"semua satuan (pcs-eq)":"qty bulan ini"}</span></div>
+  <div class="kpi"><small>${isAll?"Rata-rata / Bulan":"Rata-rata Harian"}</small><b>${fmt(isAll?avgBulan:avgHari)}</b><span>${isAll?`total ÷ ${keys.length} bulan`:`${fmt(kpiHari)} hari aktif`}</span></div>
+  <div class="kpi"><small>${isAll?"Bulan Tertinggi":"Share vs Total"}</small><b>${isAll?(NAMA_BULAN[maxK]||maxK):(kpiQty/total*100).toFixed(1)+"%"}</b><span>${isAll?`${fmt(DB.monthly[maxK].qty)} (${(DB.monthly[maxK].qty/total*100).toFixed(1)}%)`:`dari total ${fmt(total)}`}</span></div>
+  <div class="kpi"><small>Kuantitas Terbanyak (SKU)</small><b style="font-size:16px">${topItem[0]}</b><span>${fmt(topItem[1])} • ${topItemShare.toFixed(1)}% ${isAll?"dari total":"dari bulan ini"}</span></div>
+  <div class="kpi"><small>Total DO (${label})</small><b>${fmt(kpiDO)}</b><span>rata-rata ${fmt(avgDO)}/DO</span></div>
+  <div class="kpi"><small>Rata-rata ${isAll?"/ Hari":"/ DO"}</small><b>${fmt(isAll?avgHari:avgDO)}${isAll?"/hari":"/DO"}</b><span>${isAll?`${fmt(kpiHari)} hari aktif • tersibuk ${DB.topDays[0][0]} (${fmt(DB.topDays[0][1])})`:`${fmt(kpiHari)} hari aktif • ${fmt(avgHari)}/hari`}</span></div>
+  <div class="kpi"><small>SKU Aktif</small><b>${fmt(kpiSKU)}</b><span>${fmt(kpiPel)} pelanggan/cabang</span></div>
+  <div class="kpi"><small>Status Data</small><b style="font-size:15px">${DB.live?"🟢 LIVE Sheets":"🟡 Snapshot"}</b><span>${DB.live?"diperbarui dari Google Sheets":"klik Refresh Live untuk update"}</span></div>`;
+
   Object.values(charts).forEach(c=>c.destroy());charts={};
-  charts.bulan=new Chart(document.getElementById("cBulan"),{type:"bar",data:{labels:keys.map(k=>NAMA_BULAN[k]||k),datasets:[{label:"Kuantitas",data:keys.map(k=>DB.monthly[k].qty),backgroundColor:keys.map(k=>k===maxK?"#22c55e":"#38bdf8")},{label:"Rata-rata",data:keys.map(()=>avgBulan),type:"line",borderColor:"#f59e0b",borderDash:[6,4],pointRadius:0}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}}}});
-  charts.satuan=new Chart(document.getElementById("cSatuan"),{type:"doughnut",data:{labels:Object.keys(DB.bySatuan),datasets:[{data:Object.values(DB.bySatuan),backgroundColor:["#22c55e","#38bdf8","#f59e0b","#a78bfa","#f472b6","#94a3b8","#facc15","#34d399"]}]},options:{plugins:{legend:{position:"right",labels:{color:"#e2e8f0",boxWidth:12}}}}});
-  const ti=DB.topItems.slice(0,10);
+  charts.bulan=new Chart(document.getElementById("cBulan"),{type:"bar",data:{labels:keys.map(k=>NAMA_BULAN[k]||k),datasets:[{label:"Kuantitas",data:keys.map(k=>DB.monthly[k].qty),backgroundColor:keys.map(k=>isAll?(k===maxK?"#22c55e":"#38bdf8"):(k===B?"#22c55e":"#475569"))},{label:"Rata-rata",data:keys.map(()=>avgBulan),type:"line",borderColor:"#f59e0b",borderDash:[6,4],pointRadius:0}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}}}});
+  charts.satuan=new Chart(document.getElementById("cSatuan"),{type:"doughnut",data:{labels:Object.keys(bySat),datasets:[{data:Object.values(bySat),backgroundColor:["#22c55e","#38bdf8","#f59e0b","#a78bfa","#f472b6","#94a3b8","#facc15","#34d399","#fb7185","#2dd4bf","#c084fc"]}]},options:{plugins:{legend:{position:"right",labels:{color:"#e2e8f0",boxWidth:12}}}}});
   charts.item=new Chart(document.getElementById("cItem"),{type:"bar",data:{labels:ti.map(x=>x[0]),datasets:[{data:ti.map(x=>x[1]),backgroundColor:"#22c55e"}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#e2e8f0",font:{size:11}}}}}});
-  const tp=DB.topPel.slice(0,10);
   charts.pel=new Chart(document.getElementById("cPel"),{type:"bar",data:{labels:tp.map(x=>x[0].slice(0,28)),datasets:[{data:tp.map(x=>x[1]),backgroundColor:"#38bdf8"}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#e2e8f0",font:{size:11}}}}}});
-  // tabel bulan
+
   let h=`<tr><th>Bulan</th><th class="n">Kuantitas</th><th class="n">Share</th><th class="n">vs Rata²</th><th class="n">DO</th><th class="n">Avg/DO</th><th class="n">Avg/Hari</th></tr>`;
-  keys.forEach(k=>{const m=DB.monthly[k],d=m.qty-avgBulan;h+=`<tr><td><b>${NAMA_BULAN[k]||k}</b> ${k===maxK?'<span class="badge">peak</span>':""}</td><td class="n">${fmt(m.qty)}</td><td class="n">${(m.qty/total*100).toFixed(1)}%</td><td class="n" style="color:${d>=0?"#4ade80":"#f87171"}">${d>=0?"+":""}${fmt(d)}</td><td class="n">${fmt(m.do)}</td><td class="n">${fmt(Math.round(m.qty/m.do))}</td><td class="n">${fmt(Math.round(m.qty/m.hari))}</td></tr>`;});
-  h+=`<tr><td><b>Rata-rata/bln</b></td><td class="n"><b>${fmt(avgBulan)}</b></td><td class="n">${(100/keys.length).toFixed(1)}%</td><td class="n">—</td><td class="n">${fmt(Math.round(DB.totals.do/keys.length))}</td><td class="n">${fmt(avgDO)}</td><td class="n">${fmt(avgHari)}</td></tr>`;
+  keys.forEach(k=>{const m=DB.monthly[k],d=m.qty-avgBulan;h+=`<tr class="${(!isAll&&k===B)?"hl":""}"><td><b>${NAMA_BULAN[k]||k}</b> ${k===maxK?'<span class="badge">peak</span>':""}${(!isAll&&k===B)?' <span class="badge">aktif</span>':""}</td><td class="n">${fmt(m.qty)}</td><td class="n">${(m.qty/total*100).toFixed(1)}%</td><td class="n" style="color:${d>=0?"#4ade80":"#f87171"}">${d>=0?"+":""}${fmt(d)}</td><td class="n">${fmt(m.do)}</td><td class="n">${fmt(Math.round(m.qty/m.do))}</td><td class="n">${fmt(Math.round(m.qty/m.hari))}</td></tr>`;});
+  h+=`<tr><td><b>Rata-rata/bln</b></td><td class="n"><b>${fmt(avgBulan)}</b></td><td class="n">${(100/keys.length).toFixed(1)}%</td><td class="n">—</td><td class="n">${fmt(Math.round(DB.totals.do/keys.length))}</td><td class="n">${fmt(Math.round(total/(DB.totals.do||1)))}</td><td class="n">${fmt(Math.round(total/(DB.totals.hari||1)))}</td></tr>`;
   document.getElementById("tBulan").innerHTML=h;
-  renderDetail();
+
+  // tabel top15 sesuai periode + search
+  const rows15=isAll?DB.topItems.slice(0,60):topItemBulan(B,60);
+  const f15=rows15.filter(x=>x[0].toLowerCase().includes(q));
+  const denom=isAll?total:(DB.monthly[B]?DB.monthly[B].qty:1);
+  let h15=`<tr><th>#</th><th>Nama Barang</th><th class="n">Qty</th><th class="n">Share</th></tr>`;
+  f15.slice(0,15).forEach((x,i)=>{h15+=`<tr><td>${i+1}</td><td>${x[0]}</td><td class="n">${fmt(x[1])}</td><td class="n">${(x[1]/denom*100).toFixed(2)}%</td></tr>`;});
+  document.getElementById("tItem").innerHTML=h15;
+
+  // detail sesuai periode + search
+  let drows;
+  if(isAll){
+    const src=IBM(); const names=Object.keys(src).length?Object.keys(src):DB.allItems.map(x=>x.nama);
+    drows=names.map(nm=>({nama:nm,qty:Object.values(src[nm]||{}).reduce((a,b)=>a+b,0)||(DB.allItems.find(a=>a.nama===nm)||{qty:0}).qty})).filter(x=>x.qty>0&&x.nama.toLowerCase().includes(q)).sort((a,b)=>b.qty-a.qty);
+  } else {
+    const src=IBM(); drows=Object.keys(src).map(nm=>({nama:nm,qty:src[nm][B]||0})).filter(x=>x.qty>0&&x.nama.toLowerCase().includes(q)).sort((a,b)=>b.qty-a.qty);
+  }
+  const tot=drows.reduce((s,x)=>s+x.qty,0)||1;
+  let h2=`<tr><th>Nama Barang</th><th class="n">Qty ${isAll?"(total)":label}</th><th class="n">Share</th></tr>`;
+  drows.slice(0,100).forEach(x=>{h2+=`<tr><td>${x.nama}</td><td class="n">${fmt(x.qty)}</td><td class="n">${(x.qty/tot*100).toFixed(2)}%</td></tr>`;});
+  document.getElementById("tDetail").innerHTML=h2+`<p style="color:#94a3b8;font-size:12px">Periode: ${label} • Menampilkan ${Math.min(100,drows.length)} dari ${fmt(drows.length)} item • total tampilan ${fmt(tot)}</p>`;
 }
-function renderDetail(){
-  const fb=document.getElementById("fBulan").value, q=document.getElementById("fCari").value.toLowerCase();
-  // tabel top15
-  let h=`<tr><th>#</th><th>Nama Barang</th><th class="n">Qty</th><th class="n">Share</th></tr>`;
-  DB.topItems.slice(0,15).forEach((x,i)=>{h+=`<tr><td>${i+1}</td><td>${x[0]}</td><td class="n">${fmt(x[1])}</td><td class="n">${(x[1]/DB.totals.qty*100).toFixed(2)}%</td></tr>`;});
-  document.getElementById("tItem").innerHTML=h;
-  // detail (pakai allItems bila live, else topItems)
-  let rows=DB.allItems.filter(x=>x.nama.toLowerCase().includes(q));
-  // jika filter bulan & data live per-bulan tersedia, pakai itu
-  if(DB.live && DB.itemByMonth && fb!=="all"){rows=Object.entries(DB.itemByMonth).map(([nama,byM])=>({nama,qty:byM[fb]||0})).filter(x=>x.qty>0&&x.nama.toLowerCase().includes(q)).sort((a,b)=>b.qty-a.qty);}
-  else rows=[...rows].sort((a,b)=>b.qty-a.qty).slice(0,100);
-  let h2=`<tr><th>Nama Barang</th><th class="n">Qty ${fb==="all"?"(total)":fb}</th><th class="n">Share</th></tr>`;
-  const tot=rows.reduce((s,x)=>s+x.qty,0)||1;
-  rows.slice(0,100).forEach(x=>{h2+=`<tr><td>${x.nama}</td><td class="n">${fmt(x.qty)}</td><td class="n">${(x.qty/tot*100).toFixed(2)}%</td></tr>`;});
-  document.getElementById("tDetail").innerHTML=h2+`</table><p style="color:#94a3b8;font-size:12px">Menampilkan ${Math.min(100,rows.length)} dari ${fmt(rows.length)} item • total tampilan ${fmt(tot)}</p>`;
-}
-document.getElementById("fBulan").onchange=renderDetail;
-document.getElementById("fCari").oninput=renderDetail;
+
+// tombol filter
+document.getElementById("btnTampil").onclick=()=>{
+  APPLIED.bulan=document.getElementById("fBulan").value;
+  APPLIED.cari=document.getElementById("fCari").value.trim().toLowerCase();
+  render();
+};
+document.getElementById("btnReset").onclick=()=>{
+  document.getElementById("fBulan").value="all";
+  document.getElementById("fCari").value="";
+  APPLIED={bulan:"all",cari:""};
+  render();
+};
+document.getElementById("fCari").addEventListener("keydown",e=>{if(e.key==="Enter")document.getElementById("btnTampil").click();});
 
 // ===== LIVE LOAD =====
 function parseQty(s){if(!s)return 0;const n=parseInt(String(s).trim().replace(/\./g,"").replace(/[^0-9]/g,""),10);return isNaN(n)?0:n;}
-function parseCSV(t){const rows=[];let row=[],cur="",q=false;for(let i=0;i<t.length;i++){const c=t[i];if(q){if(c==='"'){if(t[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=c;}else{if(c==='"')q=true;else if(c===','){row.push(cur);cur="";}else if(c==='\n'){row.push(cur);rows.push(row);row=[];cur="";}else if(c==='\r'){}else cur+=c;}}if(cur!==""||row.length){row.push(cur);rows.push(row);}return rows;}
+function parseCSV(t){const rows=[];let row=[],cur="",qq=false;for(let i=0;i<t.length;i++){const c=t[i];if(qq){if(c==='"'){if(t[i+1]==='"'){cur+='"';i++;}else qq=false;}else cur+=c;}else{if(c==='"')qq=true;else if(c===','){row.push(cur);cur="";}else if(c==='\n'){row.push(cur);rows.push(row);row=[];cur="";}else if(c==='\r'){}else cur+=c;}}if(cur!==""||row.length){row.push(cur);rows.push(row);}return rows;}
 async function loadLive(){
   const st=document.getElementById("status");st.textContent="⏳ Mengunduh CSV live (~5MB, 91rb baris)…";
   const urls=[`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${GID}`,`https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`];
   let text=null;
   for(const u of urls){try{const r=await fetch(u);if(!r.ok)continue;text=await r.text();if(text&&text.length>1000)break;}catch(e){}}
-  if(!text){st.textContent="⚠ Gagal fetch live (kemungkinan CORS). Gunakan Upload CSV atau pakai snapshot. Detail: browser memblokir docs.google.com tanpa CORS.";return;}
+  if(!text){st.textContent="⚠ Gagal fetch live (kemungkinan CORS). Gunakan Upload CSV atau pakai snapshot.";return;}
   st.textContent=`⏳ Parsing ${(text.length/1e6).toFixed(1)}MB…`;
   await new Promise(r=>setTimeout(r,30));
   const rows=parseCSV(text);
   let hIdx=rows.findIndex(r=>r.join("|").includes("Nomor #"));if(hIdx<0)hIdx=4;
   const data=rows.slice(hIdx+1);
   const idM={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
-  let lN="",lT="",lP="";const monthly={},byItem={},byPel={},bySat={},itemByMonth={};const doSet=new Set(),daySet=new Set();let total=0;
-  for(const rr of data){if(!rr||rr.length<10)continue;let no=(rr[1]||"").trim(),tg=(rr[2]||"").trim(),pl=(rr[4]||"").trim();if(no)lN=no;else no=lN;if(tg)lT=tg;else tg=lT;if(pl)lP=pl;else pl=lP;const nm=(rr[7]||"").trim(),sa=(rr[8]||"").trim();if(!nm)continue;const qty=parseQty(rr[9]);const m=tg.match(/(\d+)\s+(\w+)\s+(\d+)/);if(!m)continue;const k=`${m[3]}-${String(idM[m[2]]+1).padStart(2,"0")}`;if(!monthly[k])monthly[k]={qty:0,do:new Set(),sku:new Set(),pel:new Set(),hari:new Set()};monthly[k].qty+=qty;monthly[k].do.add(no);monthly[k].sku.add(nm);monthly[k].pel.add(pl);monthly[k].hari.add(tg);byItem[nm]=(byItem[nm]||0)+qty;byPel[pl]=(byPel[pl]||0)+qty;bySat[sa]=(bySat[sa]||0)+qty;if(!itemByMonth[nm])itemByMonth[nm]={};itemByMonth[nm][k]=(itemByMonth[nm][k]||0)+qty;doSet.add(no);daySet.add(tg);total+=qty;}
+  let lN="",lT="",lP="";const monthly={},byItem={},byPel={},bySat={},itemByMonth={},satByMonth={},pelByMonth={};const doSet=new Set(),daySet=new Set();let total=0;
+  for(const rr of data){if(!rr||rr.length<10)continue;let no=(rr[1]||"").trim(),tg=(rr[2]||"").trim(),pl=(rr[4]||"").trim();if(no)lN=no;else no=lN;if(tg)lT=tg;else tg=lT;if(pl)lP=pl;else pl=lP;const nm=(rr[7]||"").trim(),sa=(rr[8]||"").trim()||"-";if(!nm)continue;const qty=parseQty(rr[9]);const m=tg.match(/(\d+)\s+(\w+)\s+(\d+)/);if(!m||idM[m[2]]===undefined)continue;const k=`${m[3]}-${String(idM[m[2]]+1).padStart(2,"0")}`;if(!monthly[k])monthly[k]={qty:0,do:new Set(),sku:new Set(),pel:new Set(),hari:new Set()};monthly[k].qty+=qty;monthly[k].do.add(no);monthly[k].sku.add(nm);monthly[k].pel.add(pl);monthly[k].hari.add(tg);byItem[nm]=(byItem[nm]||0)+qty;byPel[pl]=(byPel[pl]||0)+qty;bySat[sa]=(bySat[sa]||0)+qty;if(!itemByMonth[nm])itemByMonth[nm]={};itemByMonth[nm][k]=(itemByMonth[nm][k]||0)+qty;if(!satByMonth[sa])satByMonth[sa]={};satByMonth[sa][k]=(satByMonth[sa][k]||0)+qty;if(!pelByMonth[pl])pelByMonth[pl]={};pelByMonth[pl][k]=(pelByMonth[pl][k]||0)+qty;doSet.add(no);daySet.add(tg);total+=qty;}
   const mOut={};for(const k of Object.keys(monthly))mOut[k]={qty:monthly[k].qty,do:monthly[k].do.size,sku:monthly[k].sku.size,pel:monthly[k].pel.size,hari:monthly[k].hari.size};
-  DB={monthly:mOut,topItems:Object.entries(byItem).sort((a,b)=>b[1]-a[1]),topPel:Object.entries(byPel).sort((a,b)=>b[1]-a[1]),bySatuan:bySat,totals:{qty:total,do:doSet.size,sku:Object.keys(byItem).length,pel:Object.keys(byPel).length,hari:daySet.size},topDays:SNAP.topDays,live:true,allItems:Object.entries(byItem).map(([nama,qty])=>({nama,qty})),itemByMonth};
+  DB={monthly:mOut,topItems:Object.entries(byItem).sort((a,b)=>b[1]-a[1]),topPel:Object.entries(byPel).sort((a,b)=>b[1]-a[1]),bySatuan:bySat,totals:{qty:total,do:doSet.size,sku:Object.keys(byItem).length,pel:Object.keys(byPel).length,hari:daySet.size},topDays:SNAP.topDays,live:true,allItems:Object.entries(byItem).map(([nama,qty])=>({nama,qty})),itemByMonth,satByMonth,pelByMonth};
+  try{window.ITEMBYMONTH=itemByMonth;window.SATBYMONTH=satByMonth;window.PELBYMONTH=pelByMonth;}catch(e){}
   st.textContent=`🟢 LIVE: ${fmt(data.length)} baris • ${fmt(total)} qty • ${fmt(doSet.size)} DO • update ${new Date().toLocaleString("id-ID")}`;
   render();
 }
 document.getElementById("btnRefresh").onclick=loadLive;
-document.getElementById("fFile").onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const rows=parseCSV(rd.result);document.getElementById("status").textContent=`📂 File ${f.name}: ${fmt(rows.length)} baris. (Parsing sama seperti live)`;}catch(err){}};rd.readAsText(f);};
+document.getElementById("fFile").onchange=e=>{const f=e.target.files[0];if(!f)return;document.getElementById("status").textContent=`📂 File ${f.name} dipilih — gunakan Refresh Live untuk data Sheets terbaru.`;};
 render();
 </script>
 </body>
