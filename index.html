@@ -6,6 +6,7 @@
 <title>Dashboard Gudang – Batu Ceper (Jan–Sep 2026)</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="data-perbulan.js"></script>
+<script src="adj-data.js"></script>
 <style>
 :root{--bg:#0f172a;--card:#1e293b;--card2:#334155;--txt:#f1f5f9;--mut:#94a3b8;--acc:#22c55e;--acc2:#38bdf8;--warn:#f59e0b;--red:#ef4444}
 *{box-sizing:border-box}body{margin:0;font-family:'Segoe UI',system-ui,Arial;background:var(--bg);color:var(--txt)}
@@ -46,6 +47,7 @@ footer{color:var(--mut);font-size:12px;padding:20px;text-align:center}
 <div class="tabs">
 <button class="tabbtn on" id="tabBtnKirim" onclick="showTab('kirim')">📦 Pengiriman</button>
 <button class="tabbtn" id="tabBtnProd" onclick="showTab('prod')">⚙️ Produktivitas</button>
+<button class="tabbtn" id="tabBtnAdj" onclick="showTab('adj')">🧾 Adjustment</button>
 </div>
 <div id="tabKirim">
 <div class="toolbar">
@@ -94,6 +96,26 @@ footer{color:var(--mut);font-size:12px;padding:20px;text-align:center}
 <div class="card"><h3>📋 Tabel Harian</h3><div style="overflow:auto;max-height:380px"><table id="pTable"></table></div></div>
 </div>
 </div><!-- /tabProd -->
+<div id="tabAdj" style="display:none">
+<div class="toolbar">
+<label>Bulan: <select id="aBulan"><option value="all">Semua Bulan</option></select></label>
+<label>Metrik: <select id="aMetrik"><option value="biaya">Total Biaya (Rp)</option><option value="n">Jumlah Transaksi</option><option value="qty">Kuantitas</option></select></label>
+<button class="btn" id="btnATampil">Tampilkan</button>
+<button class="btn warn" id="btnAReset">Reset</button>
+<button class="btn ghost" id="btnARefresh">↻ Refresh Data</button>
+</div>
+<div id="aPeriode"></div>
+<div class="kpis" id="aKpis"></div>
+<div class="grid2">
+<div class="card"><h3 id="aAkunTitle">🧾 Akun Penyesuaian per Bulan</h3><canvas id="aAkun"></canvas></div>
+<div class="card"><h3 id="aTipeTitle">🔀 Tipe Penyesuaian per Bulan</h3><canvas id="aTipe"></canvas></div>
+</div>
+<div class="card"><h3 id="aGudTitle">🏬 Tipe Penyesuaian per Gudang</h3><canvas id="aGud"></canvas><div style="overflow:auto;max-height:380px;margin-top:10px"><table id="aGudTable"></table></div></div>
+<div class="grid2">
+<div class="card"><h3 id="aPivotAkunTitle">📋 Pivot Akun × Bulan</h3><div style="overflow:auto;max-height:400px"><table id="aPivotAkun"></table></div></div>
+<div class="card"><h3 id="aPivotTipeTitle">📋 Pivot Tipe × Bulan</h3><div style="overflow:auto;max-height:400px"><table id="aPivotTipe"></table></div></div>
+</div>
+</div><!-- /tabAdj -->
 </div>
 <footer>Snapshot bawaan: Jan–Sep 2026 • Total 2.123.551 pcs-eq • 12.638 DO • 102 SKU • 341 pelanggan • Pilih bulan lalu klik Tampilkan untuk filter seluruh dashboard.</footer>
 
@@ -250,11 +272,12 @@ document.getElementById("btnRefresh").onclick=loadLive;
 document.getElementById("fFile").onchange=e=>{const f=e.target.files[0];if(!f)return;document.getElementById("status").textContent=`📂 File ${f.name} dipilih — gunakan Refresh Live untuk data Sheets terbaru.`;};
 // ===== TAB SWITCH =====
 function showTab(w){
-  document.getElementById("tabKirim").style.display=w==="kirim"?"":"none";
-  document.getElementById("tabProd").style.display=w==="prod"?"":"none";
-  document.getElementById("tabBtnKirim").classList.toggle("on",w==="kirim");
-  document.getElementById("tabBtnProd").classList.toggle("on",w==="prod");
+  ["kirim","prod","adj"].forEach(k=>{
+    document.getElementById("tab"+k[0].toUpperCase()+k.slice(1)).style.display=w===k?"":"none";
+    document.getElementById("tabBtn"+k[0].toUpperCase()+k.slice(1)).classList.toggle("on",w===k);
+  });
   if(w==="prod") renderProd();
+  if(w==="adj") renderAdj();
 }
 
 // ===== PRODUKTIVITAS (Warehouse Productivity IN/OUT) =====
@@ -323,6 +346,105 @@ async function loadProdLive(){
   renderProd();
 }
 document.getElementById("btnPRefresh").onclick=loadProdLive;
+
+// ===== ADJUSTMENT (sheet Data) =====
+const ADJ_SHEET="1wfLawXy4WNH8B3W7Guv5WlVQLuiyC85MdLqf7dchZlA", ADJ_GID="259029579";
+let ADJ=(typeof ADJDATA!=="undefined")?ADJDATA:{months:[],akunBulan:{},tipeBulan:{},tipeGudang:{},totals:{n:0,biaya:0,qty:0}};
+let ARANGE={bulan:"all", metrik:"biaya"};
+let aCharts={};
+const fmtRp=n=>"Rp "+Number(Math.round(n||0)).toLocaleString("id-ID");
+const AMON={January:"Jan",February:"Feb",March:"Mar",April:"Apr",May:"Mei",June:"Jun",July:"Jul",August:"Agu",September:"Sep",October:"Okt",November:"Nov",December:"Des"};
+function aVal(e,m){if(!e)return 0;return m==="biaya"?e[1]:(m==="qty"?e[2]:e[0]);}
+function aFmt(v,m){return m==="biaya"?fmtRp(v):(m==="qty"?fmt(Math.round(v)):fmt(v));}
+function adjKeys(map,part){const s=new Set();for(const k of Object.keys(map)){const[a,b]=k.split("||");if(part===0)s.add(a);else s.add(b);}return[...s];}
+function renderAdj(){
+  const mSel=document.getElementById("aBulan");
+  const months=(ADJ.months&&ADJ.months.length)?ADJ.months:["January","February","March","April","May","June","July","August","September"];
+  if(mSel.options.length<=1){months.forEach(m=>{const o=document.createElement("option");o.value=m;o.textContent=(AMON[m]||m)+" 2026";mSel.appendChild(o);});}
+  mSel.value=ARANGE.bulan; document.getElementById("aMetrik").value=ARANGE.metrik;
+  const B=ARANGE.bulan, M=ARANGE.metrik, isAll=(B==="all");
+  const mLab=isAll?"Semua Bulan":((AMON[B]||B)+" 2026");
+  const mName=M==="biaya"?"Total Biaya":(M==="qty"?"Kuantitas":"Transaksi");
+  document.getElementById("aPeriode").innerHTML=`<div id="periodeInfo" style="margin-bottom:12px">📌 Adjustment: <b>${mLab}</b> • metrik <b>${mName}</b> • ${ADJ.live?"🟢 LIVE Sheets":"🟡 Snapshot"}</div>`;
+  // agregat sesuai filter
+  const agg=(map,keys,part)=>{const o={};keys.forEach(k=>o[k]=0);for(const kk of Object.keys(map)){const[a,b]=kk.split("||");const dim=part===0?a:b, oth=part===0?b:a;if(!isAll&&oth!==B)continue;if(o[dim]===undefined)o[dim]=0;o[dim]+=aVal(map[kk],M);}return o;};
+  const akuns=adjKeys(ADJ.akunBulan,0).sort(), tipes=adjKeys(ADJ.tipeBulan,0).sort();
+  const gudKeys=adjKeys(ADJ.tipeGudang,1);
+  const sumBulan=B; // bulan aktif
+  const byAkun=agg(ADJ.akunBulan,akuns,0), byTipe=agg(ADJ.tipeBulan,tipes,0);
+  const totV=Object.values(byAkun).reduce((s,v)=>s+v,0);
+  const topAkun=Object.entries(byAkun).sort((a,b)=>b[1]-a[1])[0]||["—",0];
+  const topTipe=Object.entries(byTipe).sort((a,b)=>b[1]-a[1])[0]||["—",0];
+  const nTr=isAll?ADJ.totals.n:Object.keys(ADJ.tipeBulan).filter(k=>k.split("||")[1]===B).reduce((s,k)=>s+ADJ.tipeBulan[k][0],0);
+  document.getElementById("aKpis").innerHTML=`
+  <div class="kpi"><small>${mName} (${mLab})</small><b>${aFmt(totV,M)}</b><span>${fmt(nTr)} transaksi</span></div>
+  <div class="kpi"><small>Akun Terbesar</small><b style="font-size:15px">${topAkun[0]}</b><span>${aFmt(topAkun[1],M)}</span></div>
+  <div class="kpi"><small>Tipe Dominan</small><b>${topTipe[0]}</b><span>${aFmt(topTipe[1],M)}</span></div>
+  <div class="kpi"><small>Total Transaksi Data</small><b>${fmt(ADJ.totals.n)}</b><span>${fmtRp(ADJ.totals.biaya)} keseluruhan</span></div>`;
+  // charts
+  Object.values(aCharts).forEach(c=>c.destroy());aCharts={};
+  const pal=["#22c55e","#38bdf8","#f59e0b","#a78bfa","#f472b6","#facc15","#34d399","#fb7185","#2dd4bf","#c084fc","#94a3b8","#f97316"];
+  const mAxis=isAll?months:[B];
+  const dsAkun=akuns.map((a,i)=>({label:a,data:mAxis.map(m=>aVal(ADJ.akunBulan[a+"||"+m],M)),backgroundColor:pal[i%pal.length],stack:"s"}));
+  aCharts.akun=new Chart(document.getElementById("aAkun"),{type:"bar",data:{labels:mAxis.map(m=>AMON[m]||m),datasets:dsAkun},options:{plugins:{legend:{labels:{color:"#e2e8f0",boxWidth:12}}},scales:{x:{stacked:true,ticks:{color:"#94a3b8"}},y:{stacked:true,ticks:{color:"#94a3b8"}}}}});
+  const dsTipe=tipes.map((t,i)=>({label:t,data:mAxis.map(m=>aVal(ADJ.tipeBulan[t+"||"+m],M)),backgroundColor:pal[(i+3)%pal.length]}));
+  aCharts.tipe=new Chart(document.getElementById("aTipe"),{type:"bar",data:{labels:mAxis.map(m=>AMON[m]||m),datasets:dsTipe},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}}}});
+  // tipe per gudang (top 12 gudang by value)
+  const gVal={}; gudKeys.forEach(g=>{gVal[g]=tipes.reduce((s,t)=>s+aVal(ADJ.tipeGudang[t+"||"+g],M),0);});
+  let gTop=Object.entries(gVal).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  if(!isAll){const tGB=ADJ.tipeGudangBulan;
+    if(tGB){const gv2={};gudKeys.forEach(g=>{gv2[g]=tipes.reduce((s,t)=>s+aVal(tGB[t+"||"+g+"||"+B],M),0);});
+      gTop=Object.entries(gv2).sort((a,b)=>b[1]-a[1]).slice(0,12);
+    } else {
+    // hitung ulang per gudang khusus bulan B: butuh pivot tipe×gudang×bulan — tidak tersedia di snapshot, pakai proporsi bulan dari tipeBulan
+    const wT={}; let wSum=0; tipes.forEach(t=>{const e=ADJ.tipeBulan[t+"||"+B];const tot=Object.keys(ADJ.tipeBulan).filter(k=>k.split("||")[0]===t).reduce((s,k)=>s+aVal(ADJ.tipeBulan[k],M),0);wT[t]=tot?aVal(e,M)/tot:0;});
+    const gv={}; gudKeys.forEach(g=>{gv[g]=tipes.reduce((s,t)=>s+aVal(ADJ.tipeGudang[t+"||"+g],M)*wT[t],0);});
+    gTop=Object.entries(gv).sort((a,b)=>b[1]-a[1]).slice(0,12);
+    }
+  }
+  aCharts.gud=new Chart(document.getElementById("aGud"),{type:"bar",data:{labels:gTop.map(x=>x[0].slice(0,26)),datasets:[{data:gTop.map(x=>Math.round(x[1])),backgroundColor:"#a78bfa"}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#e2e8f0",font:{size:11}}}}}});
+  const tGB=ADJ.tipeGudangBulan;
+  const gCell=(t,g)=>{if(!isAll&&tGB)return aVal(tGB[t+"||"+g+"||"+B],M);
+    if(!isAll){const e=ADJ.tipeBulan[t+"||"+B];const tot=Object.keys(ADJ.tipeBulan).filter(k=>k.split("||")[0]===t).reduce((s,k)=>s+aVal(ADJ.tipeBulan[k],M),0);const w=tot?aVal(e,M)/tot:0;return aVal(ADJ.tipeGudang[t+"||"+g],M)*w;}
+    return aVal(ADJ.tipeGudang[t+"||"+g],M);};
+  let hg=`<tr><th>Gudang</th>${tipes.map(t=>`<th class="n">${t}</th>`).join("")}<th class="n">Total</th></tr>`;
+  gTop.forEach(([g])=>{let rowT=0;hg+=`<tr><td><b>${g}</b></td>`;tipes.forEach(t=>{const v=gCell(t,g);rowT+=v;hg+=`<td class="n">${aFmt(v,M)}</td>`;});hg+=`<td class="n"><b>${aFmt(rowT,M)}</b></td></tr>`;});
+  document.getElementById("aGudTable").innerHTML=hg+`<p style="color:#94a3b8;font-size:12px">Top 12 gudang ${isAll?"(semua bulan)":((tGB?`tepat untuk ${mLab} (data live)`:`estimasi proporsional ${mLab} — klik Refresh Data untuk angka pasti`))} • metrik ${mName}</p>`;
+  // pivot tables
+  const piv=(map,rows,cols,title)=>{let h=`<tr><th>${title}</th>${cols.map(c=>`<th class="n">${AMON[c]||c}</th>`).join("")}<th class="n">Total</th></tr>`;const cT={};cols.forEach(c=>cT[c]=0);let gT=0;rows.forEach(r=>{let rT=0;h+=`<tr><td><b>${r}</b></td>`;cols.forEach(c=>{const v=aVal(map[r+"||"+c],M);rT+=v;cT[c]+=v;h+=`<td class="n">${aFmt(v,M)}</td>`;});gT+=rT;h+=`<td class="n"><b>${aFmt(rT,M)}</b></td></tr>`;});h+=`<tr><td><b>Total</b></td>${cols.map(c=>`<td class="n"><b>${aFmt(cT[c],M)}</b></td>`).join("")}<td class="n"><b>${aFmt(gT,M)}</b></td></tr>`;return h;};
+  const showMonths=isAll?months:[B];
+  const akunRows=akuns.sort((a,b)=>showMonths.reduce((s,m)=>s+aVal(ADJ.akunBulan[b+"||"+m],M),0)-showMonths.reduce((s,m)=>s+aVal(ADJ.akunBulan[a+"||"+m],M),0));
+  const tipeRows=tipes.sort((a,b)=>showMonths.reduce((s,m)=>s+aVal(ADJ.tipeBulan[b+"||"+m],M),0)-showMonths.reduce((s,m)=>s+aVal(ADJ.tipeBulan[a+"||"+m],M),0));
+  document.getElementById("aPivotAkun").innerHTML=piv(ADJ.akunBulan,akunRows,showMonths,"Nama Akun");
+  document.getElementById("aPivotTipe").innerHTML=piv(ADJ.tipeBulan,tipeRows,showMonths,"Tipe");
+  document.getElementById("aAkunTitle").textContent=`🧾 Akun Penyesuaian per Bulan (${mName}, ${mLab})`;
+  document.getElementById("aTipeTitle").textContent=`🔀 Tipe Penyesuaian per Bulan (${mName}, ${mLab})`;
+  document.getElementById("aGudTitle").textContent=`🏬 Tipe Penyesuaian per Gudang (${mName}, ${mLab})`;
+  document.getElementById("aPivotAkunTitle").textContent=`📋 Pivot Akun × Bulan (${mName})`;
+  document.getElementById("aPivotTipeTitle").textContent=`📋 Pivot Tipe × Bulan (${mName})`;
+}
+document.getElementById("btnATampil").onclick=()=>{ARANGE={bulan:document.getElementById("aBulan").value,metrik:document.getElementById("aMetrik").value};renderAdj();};
+document.getElementById("btnAReset").onclick=()=>{document.getElementById("aBulan").value="all";document.getElementById("aMetrik").value="biaya";ARANGE={bulan:"all",metrik:"biaya"};renderAdj();};
+async function loadAdjLive(){
+  const st=document.getElementById("status");st.textContent="⏳ Mengunduh data adjustment (~2MB)…";
+  try{
+    const t=await fetch(`https://docs.google.com/spreadsheets/d/${ADJ_SHEET}/export?format=csv&gid=${ADJ_GID}`).then(r=>{if(!r.ok)throw 0;return r.text();});
+    const rows=parseCSV(t);let hI=rows.findIndex(r=>r.join("|").includes("Nomor #"));if(hI<0)hI=4;
+    const aB={},tB={},tG={},tGB={};let n=0,bb=0,qq=0;
+    const an=s=>{if(!s)return 0;const x=parseFloat(String(s).replace(/[^0-9.\-]/g,""));return isNaN(x)?0:x;};
+    for(const r of rows.slice(hI+1)){while(r.length<14)r.push("");if(!r[1]&&!r[2]&&!r[3])continue;
+      const qty=an(r[4]),tp=((r[6]||"").trim()||"-"),ak=((r[7]||"").trim()||"-"),by=an(r[8]),gd=((r[9]||"").trim()||"-"),bl=((r[11]||"").trim()||"-");
+      n++;bb+=by;qq+=qty;
+      const b=(m,k)=>{const e=m[k]=m[k]||[0,0,0];e[0]++;e[1]+=by;e[2]+=qty;};
+      b(aB,ak+"||"+bl);b(tB,tp+"||"+bl);b(tG,tp+"||"+gd);b(tGB,tp+"||"+gd+"||"+bl);}
+    const MO=["January","February","March","April","May","June","July","August","September","October","November","December"];
+    ADJ={months:MO.filter(m=>Object.keys(aB).some(k=>k.split("||")[1]===m)),akunBulan:aB,tipeBulan:tB,tipeGudang:tG,tipeGudangBulan:tGB,totals:{n,biaya:Math.round(bb),qty:Math.round(qq*100)/100},live:true};
+    try{window.ADJDATA={months:ADJ.months,akunBulan:aB,tipeBulan:tB,tipeGudang:tG,totals:ADJ.totals};}catch(e){}
+    st.textContent=`🟢 Adjustment LIVE: ${fmt(n)} transaksi • update ${new Date().toLocaleString("id-ID")}`;
+  }catch(e){st.textContent="⚠ Gagal fetch adjustment (kemungkinan CORS). Snapshot tetap tampil.";}
+  renderAdj();
+}
+document.getElementById("btnARefresh").onclick=loadAdjLive;
 
 render();
 </script>
