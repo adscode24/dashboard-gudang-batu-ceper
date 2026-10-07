@@ -30,6 +30,10 @@ tr.hl td{background:rgba(34,197,94,.12);font-weight:700}
 #periodeInfo{font-size:13px;margin-bottom:12px;color:#fde68a}
 canvas{max-height:340px}
 footer{color:var(--mut);font-size:12px;padding:20px;text-align:center}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabbtn{background:var(--card);color:var(--txt);border:1px solid var(--card2);padding:9px 18px;border-radius:10px;cursor:pointer;font-weight:700}
+.tabbtn.on{background:var(--acc);color:#052e16;border-color:var(--acc)}
+.toolbar input[type="date"]{color-scheme:dark}
 </style>
 </head>
 <body>
@@ -39,6 +43,11 @@ footer{color:var(--mut);font-size:12px;padding:20px;text-align:center}
 </header>
 <div class="wrap">
 <div id="status">Memuat snapshot…</div>
+<div class="tabs">
+<button class="tabbtn on" id="tabBtnKirim" onclick="showTab('kirim')">📦 Pengiriman</button>
+<button class="tabbtn" id="tabBtnProd" onclick="showTab('prod')">⚙️ Produktivitas</button>
+</div>
+<div id="tabKirim">
 <div class="toolbar">
 <label>Bulan: <select id="fBulan"><option value="all">Semua Bulan</option></select></label>
 <label>Cari barang: <input id="fCari" placeholder="cth: burger, ayam…"></label>
@@ -65,6 +74,26 @@ footer{color:var(--mut);font-size:12px;padding:20px;text-align:center}
 <div class="card"><h3 id="tItemTitle">📋 Top 15 Barang + Share</h3><div style="overflow:auto;max-height:380px"><table id="tItem"></table></div></div>
 </div>
 <div class="card"><h3 id="tDetailTitle">🔎 Detail Barang</h3><div style="overflow:auto;max-height:400px"><table id="tDetail"></table></div></div>
+</div><!-- /tabKirim -->
+<div id="tabProd" style="display:none">
+<div class="toolbar">
+<label>Dari: <input type="date" id="pDari" value="2026-10-01"></label>
+<label>Sampai: <input type="date" id="pSampai" value="2026-10-30"></label>
+<button class="btn" id="btnPTampil">Tampilkan</button>
+<button class="btn warn" id="btnPReset">Reset</button>
+<button class="btn ghost" id="btnPRefresh">↻ Refresh Data</button>
+</div>
+<div id="pPeriode"></div>
+<div class="kpis" id="pKpis"></div>
+<div class="grid2">
+<div class="card"><h3 id="pTonTitle">📦 Tren Tonase Harian IN vs OUT</h3><canvas id="pTon"></canvas></div>
+<div class="card"><h3 id="pActTitle">🎯 Produktivitas Harian (Actual) vs Target</h3><canvas id="pAct"></canvas></div>
+</div>
+<div class="grid2">
+<div class="card"><h3>👷 Man Power Harian IN vs OUT</h3><canvas id="pMp"></canvas></div>
+<div class="card"><h3>📋 Tabel Harian</h3><div style="overflow:auto;max-height:380px"><table id="pTable"></table></div></div>
+</div>
+</div><!-- /tabProd -->
 </div>
 <footer>Snapshot bawaan: Jan–Sep 2026 • Total 2.123.551 pcs-eq • 12.638 DO • 102 SKU • 341 pelanggan • Pilih bulan lalu klik Tampilkan untuk filter seluruh dashboard.</footer>
 
@@ -219,6 +248,82 @@ async function loadLive(){
 }
 document.getElementById("btnRefresh").onclick=loadLive;
 document.getElementById("fFile").onchange=e=>{const f=e.target.files[0];if(!f)return;document.getElementById("status").textContent=`📂 File ${f.name} dipilih — gunakan Refresh Live untuk data Sheets terbaru.`;};
+// ===== TAB SWITCH =====
+function showTab(w){
+  document.getElementById("tabKirim").style.display=w==="kirim"?"":"none";
+  document.getElementById("tabProd").style.display=w==="prod"?"":"none";
+  document.getElementById("tabBtnKirim").classList.toggle("on",w==="kirim");
+  document.getElementById("tabBtnProd").classList.toggle("on",w==="prod");
+  if(w==="prod") renderProd();
+}
+
+// ===== PRODUKTIVITAS (Warehouse Productivity IN/OUT) =====
+const PROD_SHEET="1pWF__nTdnkZBJtuPg7nBMg9qLvf0Z6ME9jlNpHJgxis", PROD_IN_GID="674359341", PROD_OUT_GID="1474638367";
+const PRODIN_SNAP=[["1 Oct 2026","200","14,818.25","7.00","15.00","141.13"],["2 Oct 2026","200","32,543.05","7.00","13.00","357.62"],["3 Oct 2026","200","7,845.65","7.00","9.00","124.53"],["4 Oct 2026","200","0.00","7.00","0.00","0.00"],["5 Oct 2026","200","14,246.20","7.00","12.00","169.60"],["6 Oct 2026","200","12,278.30","7.00","9.00","194.89"],["7 Oct 2026","200","12,613.35","7.00","9.00","200.21"],["8 Oct 2026","200","0.00","7.00","8.00","0.00"],["9 Oct 2026","200","0.00","7.00","7.00","0.00"],["10 Oct 2026","200","0.00","7.00","7.00","0.00"],["11 Oct 2026","200","0.00","7.00","8.00","0.00"],["12 Oct 2026","200","0.00","7.00","10.00","0.00"],["13 Oct 2026","200","0.00","","0.00","0.00"],["14 Oct 2026","200","0.00","7.00","0.00","0.00"],["15 Oct 2026","200","0.00","7.00","0.00","0.00"],["16 Oct 2026","200","0.00","7.00","0.00","0.00"],["17 Oct 2026","200","0.00","7.00","0.00","0.00"],["18 Oct 2026","200","0.00","7.00","0.00","0.00"],["19 Oct 2026","200","0.00","7.00","0.00","0.00"],["20 Oct 2026","200","0.00","7.00","0.00","0.00"],["21 Oct 2026","200","0.00","7.00","0.00","0.00"],["22 Oct 2026","200","0.00","7.00","0.00","0.00"],["23 Oct 2026","200","0.00","7.00","0.00","0.00"],["24 Oct 2026","200","0.00","7.00","0.00","0.00"],["25 Oct 2026","200","0.00","7.00","0.00","0.00"],["26 Oct 2026","200","0.00","7.00","0.00","0.00"],["27 Oct 2026","200","0.00","7.00","0.00","0.00"],["28 Oct 2026","200","0.00","7.00","0.00","0.00"],["29 Oct 2026","200","0.00","7.00","0.00","0.00"],["30 Oct 2026","200","0.00","7.00","0.00","0.00"]];
+const PRODOUT_SNAP=[["1 Oct 2026","200","14,818.25","7.00","17.00","124.52"],["2 Oct 2026","200","0.00","7.00","19.00","0.00"],["3 Oct 2026","200","0.00","7.00","20.00","0.00"],["4 Oct 2026","200","0.00","7.00","9.00","0.00"],["5 Oct 2026","200","0.00","7.00","9.00","0.00"],["6 Oct 2026","200","0.00","","","0.00"],["7 Oct 2026","200","0.00","7.00","9.00","0.00"],["8 Oct 2026","200","0.00","7.00","8.00","0.00"],["9 Oct 2026","200","0.00","7.00","9.00","0.00"],["10 Oct 2026","200","0.00","7.00","8.00","0.00"],["11 Oct 2026","200","0.00","7.00","12.00","0.00"],["12 Oct 2026","200","0.00","7.00","17.00","0.00"],["13 Oct 2026","200","0.00","","","0.00"],["14 Oct 2026","200","0.00","7.00","14.00","0.00"],["15 Oct 2026","200","0.00","7.00","18.00","0.00"],["16 Oct 2026","200","0.00","7.00","18.00","0.00"],["17 Oct 2026","200","0.00","7.00","12.00","0.00"],["18 Oct 2026","200","0.00","7.00","16","0.00"],["19 Oct 2026","200","0.00","7.00","24","0.00"],["20 Oct 2026","200","0.00","","","0.00"],["21 Oct 2026","200","0.00","7.00","18","0.00"],["22 Oct 2026","200","0.00","7.00","12","0.00"],["23 Oct 2026","200","0.00","7.00","17","0.00"],["24 Oct 2026","200","0.00","7.00","11","0.00"],["25 Oct 2026","200","0.00","7.00","18","0.00"],["26 Oct 2026","200","0.00","7.00","","0.00"],["27 Oct 2026","200","0.00","7.00","","0.00"],["28 Oct 2026","200","0.00","7.00","","0.00"],["29 Oct 2026","200","0.00","7.00","","0.00"],["30 Oct 2026","200","0.00","7.00","","0.00"]];
+const MON3={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+function pNum(s){if(s==null||s==="")return 0;const n=parseFloat(String(s).replace(/,/g,""));return isNaN(n)?0:n;}
+function pDate(s){const m=String(s).match(/(\d+)\s+(\w+)\s+(\d+)/);if(!m||MON3[m[2]]===undefined)return null;return new Date(+m[3],MON3[m[2]],+m[1]);}
+function pRec(rows){return rows.map(r=>({tgl:r[0],d:pDate(r[0]),target:pNum(r[1]),ton:pNum(r[2]),jam:pNum(r[3]),mp:pNum(r[4]),act:pNum(r[5])})).filter(x=>x.d);}
+let PROD={inRec:pRec(PRODIN_SNAP), outRec:pRec(PRODOUT_SNAP), live:false};
+let PRANGE={dari:"2026-10-01", sampai:"2026-10-30"};
+let pCharts={};
+const fmtD=d=>d.toLocaleDateString("id-ID",{day:"numeric",month:"short"});
+function renderProd(){
+  const d0=new Date(PRANGE.dari+"T00:00:00"), d1=new Date(PRANGE.sampai+"T00:00:00");
+  const fi=PROD.inRec.filter(x=>x.d>=d0&&x.d<=d1), fo=PROD.outRec.filter(x=>x.d>=d0&&x.d<=d1);
+  const all=[...fi,...fo].map(x=>x.tgl).filter((v,i,a)=>a.indexOf(v)===i).sort((a,b)=>pDate(a)-pDate(b));
+  const mIn={}, mOut={}; fi.forEach(x=>mIn[x.tgl]=x); fo.forEach(x=>mOut[x.tgl]=x);
+  const sum=a=>a.reduce((s,x)=>s+x,0);
+  const tonIn=sum(fi.map(x=>x.ton)), tonOut=sum(fo.map(x=>x.ton));
+  const actIn=fi.length?sum(fi.map(x=>x.act))/fi.length:0, actOut=fo.length?sum(fo.map(x=>x.act))/fo.length:0;
+  const tgt=fi.length?fi[0].target:200;
+  const aktifIn=fi.filter(x=>x.ton>0).length, aktifOut=fo.filter(x=>x.ton>0).length;
+  const jamIn=sum(fi.map(x=>x.jam)), jamOut=sum(fo.map(x=>x.jam));
+  const mpIn=fi.length?sum(fi.map(x=>x.mp))/fi.length:0, mpOut=fo.length?sum(fo.map(x=>x.mp))/fo.length:0;
+  const pct=(a,t)=>t?`(${(a/t*100).toFixed(1)}% dari target ${fmt(t)})`:"";
+  document.getElementById("pPeriode").innerHTML=`<div id="periodeInfo" style="margin-bottom:12px">📌 Periode produktivitas: <b>${fmtD(d0)} – ${fmtD(d1)}</b> ${PROD.live?"• 🟢 LIVE Sheets":"• 🟡 Snapshot"}</div>`;
+  document.getElementById("pKpis").innerHTML=`
+  <div class="kpi"><small>Total Tonase IN</small><b>${fmt(Math.round(tonIn))}</b><span>${aktifIn} hari aktif</span></div>
+  <div class="kpi"><small>Total Tonase OUT</small><b>${fmt(Math.round(tonOut))}</b><span>${aktifOut} hari aktif</span></div>
+  <div class="kpi"><small>Rata-rata Actual IN</small><b>${actIn.toFixed(1)}</b><span>${pct(actIn,tgt)}</span></div>
+  <div class="kpi"><small>Rata-rata Actual OUT</small><b>${actOut.toFixed(1)}</b><span>${pct(actOut,tgt)}</span></div>
+  <div class="kpi"><small>Total Jam Kerja IN / OUT</small><b>${fmt(jamIn)} / ${fmt(jamOut)}</b><span>jam dalam periode</span></div>
+  <div class="kpi"><small>Rata-rata Man Power IN / OUT</small><b>${mpIn.toFixed(1)} / ${mpOut.toFixed(1)}</b><span>orang per hari</span></div>`;
+  Object.values(pCharts).forEach(c=>c.destroy());pCharts={};
+  const lab=all.map(t=>fmtD(pDate(t)));
+  pCharts.ton=new Chart(document.getElementById("pTon"),{type:"bar",data:{labels:lab,datasets:[{label:"Tonase IN",data:all.map(t=>(mIn[t]||{ton:0}).ton),backgroundColor:"#22c55e"},{label:"Tonase OUT",data:all.map(t=>(mOut[t]||{ton:0}).ton),backgroundColor:"#38bdf8"}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}}}});
+  pCharts.act=new Chart(document.getElementById("pAct"),{type:"line",data:{labels:lab,datasets:[{label:"Actual IN",data:all.map(t=>(mIn[t]||{act:0}).act),borderColor:"#22c55e",tension:.3},{label:"Actual OUT",data:all.map(t=>(mOut[t]||{act:0}).act),borderColor:"#38bdf8",tension:.3},{label:"Target",data:all.map(()=>tgt),borderColor:"#f59e0b",borderDash:[6,4],pointRadius:0}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}}}});
+  pCharts.mp=new Chart(document.getElementById("pMp"),{type:"bar",data:{labels:lab,datasets:[{label:"MP IN",data:all.map(t=>(mIn[t]||{mp:0}).mp),backgroundColor:"#22c55e"},{label:"MP OUT",data:all.map(t=>(mOut[t]||{mp:0}).mp),backgroundColor:"#38bdf8"}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}}}});
+  let h=`<tr><th>Tanggal</th><th class="n">Ton IN</th><th class="n">Ton OUT</th><th class="n">Actual IN</th><th class="n">Actual OUT</th><th class="n">MP IN/OUT</th></tr>`;
+  all.forEach(t=>{const a=mIn[t]||{},b=mOut[t]||{};h+=`<tr><td><b>${t}</b></td><td class="n">${fmt(Math.round(a.ton||0))}</td><td class="n">${fmt(Math.round(b.ton||0))}</td><td class="n" style="color:${(a.act||0)>=tgt?"#4ade80":"#f87171"}">${(a.act||0).toFixed(2)}</td><td class="n" style="color:${(b.act||0)>=tgt?"#4ade80":"#f87171"}">${(b.act||0).toFixed(2)}</td><td class="n">${fmt(a.mp||0)}/${fmt(b.mp||0)}</td></tr>`;});
+  document.getElementById("pTable").innerHTML=h;
+  document.getElementById("pTonTitle").textContent=`📦 Tren Tonase Harian IN vs OUT (${fmtD(d0)} – ${fmtD(d1)})`;
+  document.getElementById("pActTitle").textContent=`🎯 Produktivitas Harian vs Target ${fmt(tgt)} (${fmtD(d0)} – ${fmtD(d1)})`;
+}
+document.getElementById("btnPTampil").onclick=()=>{
+  const d=document.getElementById("pDari").value, s=document.getElementById("pSampai").value;
+  if(!d||!s){alert("Isi tanggal Dari dan Sampai dulu.");return;}
+  if(d>s){alert("Tanggal Dari tidak boleh lebih besar dari Sampai.");return;}
+  PRANGE={dari:d,sampai:s}; renderProd();
+};
+document.getElementById("btnPReset").onclick=()=>{
+  document.getElementById("pDari").value="2026-10-01";document.getElementById("pSampai").value="2026-10-30";
+  PRANGE={dari:"2026-10-01",sampai:"2026-10-30"}; renderProd();
+};
+async function loadProdLive(){
+  const st=document.getElementById("status");st.textContent="⏳ Mengunduh data produktivitas…";
+  try{
+    const [ti,to]=await Promise.all([PROD_IN_GID,PROD_OUT_GID].map(g=>fetch(`https://docs.google.com/spreadsheets/d/${PROD_SHEET}/export?format=csv&gid=${g}`).then(r=>{if(!r.ok)throw 0;return r.text();})));
+    PROD={inRec:pRec(parseCSV(ti).slice(1)),outRec:pRec(parseCSV(to).slice(1)),live:true};
+    const ds=[...PROD.inRec,...PROD.outRec].map(x=>x.tgl).filter((v,i,a)=>a.indexOf(v)===i).sort((a,b)=>pDate(a)-pDate(b));
+    if(ds.length){const iso=d=>{const x=pDate(d);return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;};document.getElementById("pDari").value=iso(ds[0]);document.getElementById("pSampai").value=iso(ds[ds.length-1]);PRANGE={dari:iso(ds[0]),sampai:iso(ds[ds.length-1])};}
+    st.textContent=`🟢 Produktivitas LIVE update ${new Date().toLocaleString("id-ID")}`;
+  }catch(e){st.textContent="⚠ Gagal fetch produktivitas (kemungkinan CORS). Snapshot tetap tampil.";}
+  renderProd();
+}
+document.getElementById("btnPRefresh").onclick=loadProdLive;
+
 render();
 </script>
 </body>
