@@ -7,6 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="data-perbulan.js"></script>
 <script src="adj-data.js"></script>
+<script src="rec-data.js"></script>
 <style>
 :root{--bg:#0f172a;--card:#1e293b;--card2:#334155;--txt:#f1f5f9;--mut:#94a3b8;--acc:#22c55e;--acc2:#38bdf8;--warn:#f59e0b;--red:#ef4444}
 *{box-sizing:border-box}body{margin:0;font-family:'Segoe UI',system-ui,Arial;background:var(--bg);color:var(--txt)}
@@ -48,6 +49,7 @@ footer{color:var(--mut);font-size:12px;padding:20px;text-align:center}
 <button class="tabbtn on" id="tabBtnKirim" onclick="showTab('kirim')">📦 Pengiriman</button>
 <button class="tabbtn" id="tabBtnProd" onclick="showTab('prod')">⚙️ Produktivitas</button>
 <button class="tabbtn" id="tabBtnAdj" onclick="showTab('adj')">🧾 Adjustment</button>
+<button class="tabbtn" id="tabBtnRec" onclick="showTab('rec')">📥 Rekap Penerimaan</button>
 </div>
 <div id="tabKirim">
 <div class="toolbar">
@@ -117,6 +119,33 @@ footer{color:var(--mut);font-size:12px;padding:20px;text-align:center}
 <div class="card"><h3 id="aPivotTipeTitle">📋 Pivot Tipe × Bulan</h3><div style="overflow:auto;max-height:400px"><table id="aPivotTipe"></table></div></div>
 </div>
 </div><!-- /tabAdj -->
+<div id="tabRec" style="display:none">
+<div class="toolbar">
+<label>Bulan: <select id="rBulan"><option value="all">Semua Bulan</option></select></label>
+<label>Cari barang/vendor: <input id="rCari" placeholder="cth: burger, sari roti…"></label>
+<button class="btn" id="btnRTampil">Tampilkan</button>
+<button class="btn warn" id="btnRReset">Reset</button>
+<button class="btn ghost" id="btnRRefresh">↻ Refresh Data</button>
+</div>
+<div id="rPeriode"></div>
+<div class="kpis" id="rKpis"></div>
+<div class="grid2">
+<div class="card"><h3 id="rTrendTitle">📦 Penerimaan per Bulan (PO vs Diterima)</h3><canvas id="rTrend"></canvas></div>
+<div class="card"><h3 id="rDailyTitle">📈 Tren Harian Qty Diterima</h3><canvas id="rDaily"></canvas></div>
+</div>
+<div class="grid2">
+<div class="card"><h3 id="rItemTitle">🏆 Barang Paling Banyak Diterima</h3><canvas id="rItem"></canvas></div>
+<div class="card"><h3 id="rVenTitle">🚚 Vendor Teratas</h3><canvas id="rVen"></canvas></div>
+</div>
+<div class="grid2">
+<div class="card"><h3>🗓 Rekap per Bulan</h3><div style="overflow:auto"><table id="rBulan"></table></div></div>
+<div class="card"><h3 id="rTopTitle">📋 Top Barang Diterima</h3><div style="overflow:auto;max-height:380px"><table id="rTop"></table></div></div>
+</div>
+<div class="grid2">
+<div class="card"><h3>🏭 Rekap per Vendor</h3><div style="overflow:auto;max-height:380px"><table id="rVenTable"></table></div></div>
+<div class="card"><h3>⚠️ Selisih Terbesar (PO − Diterima)</h3><div style="overflow:auto;max-height:380px"><table id="rSelisih"></table></div></div>
+</div>
+</div><!-- /tabRec -->
 </div>
 <footer>Snapshot bawaan: Jan–Sep 2026 • Total 2.123.551 pcs-eq • 12.638 DO • 102 SKU • 341 pelanggan • Pilih bulan lalu klik Tampilkan untuk filter seluruh dashboard.</footer>
 
@@ -273,12 +302,13 @@ document.getElementById("btnRefresh").onclick=loadLive;
 document.getElementById("fFile").onchange=e=>{const f=e.target.files[0];if(!f)return;document.getElementById("status").textContent=`📂 File ${f.name} dipilih — gunakan Refresh Live untuk data Sheets terbaru.`;};
 // ===== TAB SWITCH =====
 function showTab(w){
-  ["kirim","prod","adj"].forEach(k=>{
+  ["kirim","prod","adj","rec"].forEach(k=>{
     document.getElementById("tab"+k[0].toUpperCase()+k.slice(1)).style.display=w===k?"":"none";
     document.getElementById("tabBtn"+k[0].toUpperCase()+k.slice(1)).classList.toggle("on",w===k);
   });
   if(w==="prod") renderProd();
   if(w==="adj") renderAdj();
+  if(w==="rec") renderRec();
 }
 
 // ===== PRODUKTIVITAS (Warehouse Productivity IN/OUT) =====
@@ -467,6 +497,136 @@ async function loadAdjLive(){
   renderAdj();
 }
 document.getElementById("btnARefresh").onclick=loadAdjLive;
+
+// ===== REKAP PENERIMAAN =====
+const REC_SHEET="10AXX9Orwrsr4Md4KOeau96CKaJvEO4GnUdO2oBJy--Y";
+const REC_TABS=[["Okt 2025","1715703598"],["Nov 2025","38221902"],["Jan 2026","0"],["Feb 2026","1219498035"],["Mar 2026","1721403908"],["Apr 2026","1474806557"],["May 2026","1120537985"],["Juni 2026","670542266"],["Juli 2026","1501441106"],["Agust 2026","383370053"],["Sep 2026","1506529845"],["Okt 2026","237142614"]];
+let REC=(typeof RECDATA!=="undefined")?Object.assign({live:false},RECDATA):{months:[],perMonth:{},perItem:{},perVendor:{},perDate:{},perMonthItem:{},perMonthDate:{},perMonthVendor:{},live:false};
+let RRANGE={bulan:"all",cari:""};
+let rCharts={};
+function rParseDate(s){const m=String(s||"").trim().match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);if(!m)return null;let y=+m[3];if(y<100)y+=2000;return new Date(y,+m[2]-1,+m[1]);}
+function renderRec(){
+  const months=REC.months||[], pm=REC.perMonth||{};
+  const bSel=document.getElementById("rBulan");
+  if(bSel.options.length<=1){months.forEach(m=>{const o=document.createElement("option");o.value=m;o.textContent=m;if(bSel) bSel.appendChild(o);});}
+  bSel.value=RRANGE.bulan;
+  const B=RRANGE.bulan, q=RRANGE.cari, isAll=(B==="all");
+  const mLab=isAll?"Semua Bulan (Okt 2025 – Okt 2026)":B;
+  document.getElementById("rPeriode").innerHTML=`<div id="periodeInfo" style="margin-bottom:12px">📌 Penerimaan: <b>${mLab}</b> • ${REC.live?"🟢 LIVE Sheets":"🟡 Snapshot"} • <span style="color:#94a3b8">satuan campur (Pack/Pcs/Bks/Kg) sesuai sheet</span></div>`;
+  // agregat periode
+  let totPO=0, totTR=0, totN=0, totDays=0;
+  if(isAll){months.forEach(m=>{const e=pm[m]||{po:0,terima:0,n:0,days:0};totPO+=e.po;totTR+=e.terima;totN+=e.n;totDays+=e.days;});}
+  else{const e=pm[B]||{po:0,terima:0,n:0,days:0};totPO=e.po;totTR=e.terima;totN=e.n;totDays=e.days;}
+  const sel=totTR-totPO, selP=totPO?(sel/totPO*100):0;
+  // item & vendor sesuai filter + search
+  let items=[];
+  if(isAll){items=Object.entries(REC.perItem||{}).map(([nm,v])=>({nm,po:v[0],tr:v[1],n:v[2],sat:v[3]||""}));}
+  else{for(const k of Object.keys(REC.perMonthItem||{})){const p=k.split("||");if(p[0]!==B)continue;const v=REC.perMonthItem[k];const g=(REC.perItem||{})[p[1]];items.push({nm:p[1],po:v[0],tr:v[1],n:v[2],sat:g?g[3]:""});}}
+  items=items.filter(x=>x.nm.toLowerCase().includes(q)).sort((a,b)=>b.tr-a.tr);
+  let vens=[];
+  if(isAll){vens=Object.entries(REC.perVendor||{}).map(([nm,v])=>({nm,po:v[0],tr:v[1],n:v[2]}));}
+  else{for(const k of Object.keys(REC.perMonthVendor||{})){const p=k.split("||");if(p[0]!==B)continue;const v=REC.perMonthVendor[k];vens.push({nm:p[1],po:v[0],tr:v[1],n:v[2]});}}
+  vens=vens.filter(x=>x.nm.toLowerCase().includes(q)).sort((a,b)=>b.tr-a.tr);
+  const topItem=items[0]||{nm:"—",tr:0}, topVen=vens.filter(v=>v.nm!=="-")[0]||vens[0]||{nm:"—",tr:0};
+  document.getElementById("rKpis").innerHTML=`
+  <div class="kpi"><small>Qty Diterima (${mLab})</small><b>${fmt(Math.round(totTR))}</b><span>dari PO ${fmt(Math.round(totPO))}</span></div>
+  <div class="kpi"><small>Selisih (Diterima − PO)</small><b style="color:${sel<0?"#f87171":"#4ade80"}">${(sel>0?"+":"")+fmt(Math.round(sel))}</b><span>${selP.toFixed(2)}% ${sel<0?"kurang":"lebih/cukup"}</span></div>
+  <div class="kpi"><small>Transaksi Penerimaan</small><b>${fmt(totN)}</b><span>${fmt(totDays)} hari aktif</span></div>
+  <div class="kpi"><small>Paling Banyak Diterima</small><b style="font-size:15px">${topItem.nm}</b><span>${fmt(Math.round(topItem.tr||0))} • ${(totTR?(topItem.tr/totTR*100):0).toFixed(1)}% dari periode</span></div>
+  <div class="kpi"><small>Vendor Teratas</small><b style="font-size:15px">${topVen.nm}</b><span>${fmt(Math.round(topVen.tr||0))}</span></div>
+  <div class="kpi"><small>Variasi Item</small><b>${fmt(isAll?Object.keys(REC.perItem||{}).length:items.length)}</b><span>${fmt(isAll?Object.keys(REC.perVendor||{}).length:vens.length)} vendor tercatat</span></div>
+  <div class="kpi"><small>Rata-rata Harian</small><b>${fmt(totDays?Math.round(totTR/totDays):0)}/hari</b><span>${fmt(totN?Math.round(totN/Math.max(totDays,1)):0)} transaksi/hari</span></div>
+  <div class="kpi"><small>Status Data</small><b style="font-size:15px">${REC.live?"🟢 LIVE Sheets":"🟡 Snapshot"}</b><span>klik Refresh Data untuk update</span></div>`;
+  Object.values(rCharts).forEach(c=>c.destroy());rCharts={};
+  rCharts.trend=new Chart(document.getElementById("rTrend"),{type:"bar",data:{labels:months,datasets:[{label:"Qty PO",data:months.map(m=>(pm[m]||{po:0}).po),backgroundColor:"#475569"},{label:"Qty Diterima",data:months.map(m=>(pm[m]||{terima:0}).terima),backgroundColor:months.map(m=>isAll?"#38bdf8":(m===B?"#22c55e":"#475569"))}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8",font:{size:10}}},y:{ticks:{color:"#94a3b8"}}}}});
+  // tren harian
+  let dKeys=[], dVals=[];
+  if(isAll){dKeys=Object.keys(REC.perDate||{}).sort((a,b)=>rParseDate(a)-rParseDate(b));dVals=dKeys.map(k=>REC.perDate[k]);}
+  else{const pre=B+"||";dKeys=Object.keys(REC.perMonthDate||{}).filter(k=>k.startsWith(pre)).map(k=>k.slice(pre.length)).sort((a,b)=>rParseDate(a)-rParseDate(b));dVals=dKeys.map(k=>REC.perMonthDate[B+"||"+k]);}
+  const dLab=dKeys.map(k=>{const d=rParseDate(k);return d?d.getDate()+"/"+(d.getMonth()+1):k;});
+  rCharts.daily=new Chart(document.getElementById("rDaily"),{type:"line",data:{labels:dLab,datasets:[{label:"Qty Diterima",data:dVals,borderColor:"#22c55e",pointRadius:isAll?0:3,tension:.25}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8",maxTicksLimit:15}},y:{ticks:{color:"#94a3b8"}}}}});
+  const ti=items.slice(0,10);
+  rCharts.item=new Chart(document.getElementById("rItem"),{type:"bar",data:{labels:ti.map(x=>x.nm.length>26?x.nm.slice(0,26)+"…":x.nm),datasets:[{data:ti.map(x=>Math.round(x.tr)),backgroundColor:"#22c55e"}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#e2e8f0",font:{size:11}}}}}});
+  const tv=vens.slice(0,10);
+  rCharts.ven=new Chart(document.getElementById("rVen"),{type:"bar",data:{labels:tv.map(x=>x.nm.length>24?x.nm.slice(0,24)+"…":x.nm),datasets:[{data:tv.map(x=>Math.round(x.tr)),backgroundColor:"#a78bfa"}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#e2e8f0",font:{size:11}}}}}});
+  document.getElementById("rTrendTitle").textContent=`📦 Penerimaan per Bulan — PO vs Diterima (${mLab})`;
+  document.getElementById("rDailyTitle").textContent=`📈 Tren Harian Qty Diterima (${mLab})`;
+  document.getElementById("rItemTitle").textContent=`🏆 Barang Paling Banyak Diterima (${mLab})`;
+  document.getElementById("rVenTitle").textContent=`🚚 Vendor Teratas (${mLab})`;
+  document.getElementById("rTopTitle").textContent=`📋 Top Barang Diterima (${mLab})`;
+  let h=`<tr><th>Bulan</th><th class="n">Qty PO</th><th class="n">Diterima</th><th class="n">Selisih</th><th class="n">%</th><th class="n">Transaksi</th><th class="n">Hari</th></tr>`;
+  months.forEach(m=>{const e=pm[m]||{po:0,terima:0,n:0,days:0};const s=e.terima-e.po;h+=`<tr class="${(!isAll&&m===B)?"hl":""}"><td><b>${m}</b>${(!isAll&&m===B)?' <span class="badge">aktif</span>':""}</td><td class="n">${fmt(Math.round(e.po))}</td><td class="n">${fmt(Math.round(e.terima))}</td><td class="n" style="color:${s<0?"#f87171":"#4ade80"}">${(s>0?"+":"")+fmt(Math.round(s))}</td><td class="n">${(e.po?(s/e.po*100):0).toFixed(2)}%</td><td class="n">${fmt(e.n)}</td><td class="n">${fmt(e.days)}</td></tr>`;});
+  document.getElementById("rBulan").innerHTML=h;
+  let h2=`<tr><th>#</th><th>Nama Barang</th><th>Sat</th><th class="n">Diterima</th><th class="n">Share</th><th class="n">Selisih</th><th class="n">Trx</th></tr>`;
+  items.slice(0,30).forEach((x,i)=>{const s=x.tr-x.po;h2+=`<tr><td>${i+1}</td><td>${x.nm}</td><td>${x.sat||""}</td><td class="n">${fmt(Math.round(x.tr))}</td><td class="n">${(totTR?(x.tr/totTR*100):0).toFixed(2)}%</td><td class="n" style="color:${s<0?"#f87171":"#4ade80"}">${(s>0?"+":"")+fmt(Math.round(s))}</td><td class="n">${fmt(x.n)}</td></tr>`;});
+  document.getElementById("rTop").innerHTML=h2;
+  let h3=`<tr><th>#</th><th>Vendor</th><th class="n">Diterima</th><th class="n">Selisih</th><th class="n">Trx</th></tr>`;
+  vens.slice(0,30).forEach((x,i)=>{const s=x.tr-x.po;h3+=`<tr><td>${i+1}</td><td>${x.nm}${x.nm==="-"?' <span style="color:#94a3b8;font-size:11px">(tab lama tanpa kolom vendor)</span>':""}</td><td class="n">${fmt(Math.round(x.tr))}</td><td class="n" style="color:${s<0?"#f87171":"#4ade80"}">${(s>0?"+":"")+fmt(Math.round(s))}</td><td class="n">${fmt(x.n)}</td></tr>`;});
+  document.getElementById("rVenTable").innerHTML=h3;
+  const sl=[...items].map(x=>({nm:x.nm,sat:x.sat||"",sel:x.po-x.tr,tr:x.tr})).filter(x=>x.sel!==0).sort((a,b)=>b.sel-a.sel).slice(0,30);
+  let h4=`<tr><th>#</th><th>Nama Barang</th><th class="n">Kurang (PO−Terima)</th><th class="n">Diterima</th></tr>`;
+  if(!sl.length)h4+=`<tr><td colspan="4" style="color:#4ade80">Tidak ada selisih pada periode ini 🎉</td></tr>`;
+  sl.forEach((x,i)=>{h4+=`<tr><td>${i+1}</td><td>${x.nm} <span style="color:#94a3b8;font-size:11px">${x.sat}</span></td><td class="n" style="color:${x.sel>0?"#f87171":"#4ade80"}">${x.sel>0?fmt(Math.round(x.sel)):"+"+fmt(Math.round(-x.sel))}</td><td class="n">${fmt(Math.round(x.tr))}</td></tr>`;});
+  document.getElementById("rSelisih").innerHTML=h4;
+}
+document.getElementById("btnRTampil").onclick=()=>{RRANGE={bulan:document.getElementById("rBulan").value,cari:document.getElementById("rCari").value.trim().toLowerCase()};renderRec();};
+document.getElementById("btnRReset").onclick=()=>{document.getElementById("rBulan").value="all";document.getElementById("rCari").value="";RRANGE={bulan:"all",cari:""};renderRec();};
+document.getElementById("rCari").addEventListener("keydown",e=>{if(e.key==="Enter")document.getElementById("btnRTampil").click();});
+function recFindTables(rows){
+  const tables=[], usedT=new Set(), usedR=new Set();
+  const lim=Math.min(8,rows.length);
+  for(let ri=0;ri<lim;ri++){
+    const low=rows[ri].map(c=>(c||"").trim().toLowerCase());
+    for(let ci=0;ci<low.length;ci++){
+      if(low[ci]!=="nama barang")continue;
+      let tgl=-1;
+      for(let j=ci-1;j>=Math.max(0,ci-7);j--){if(low[j]==="tanggal"){tgl=j;break;}}
+      if(tgl<0||(ci-tgl)>5)continue;
+      let terima=-1;
+      for(let j=ci+1;j<Math.min(low.length,ci+8);j++){if(low[j]==="qty diterima"||low[j]==="qty fisik"){terima=j;break;}}
+      if(terima<0||usedT.has(tgl)||usedR.has(terima))continue;
+      const fwd=(names,lo,hi)=>{for(let j=lo;j<Math.min(low.length,hi);j++){if(names.includes(low[j]))return j;}return -1;};
+      tables.push({row:ri,tgl,nama:ci,vendor:fwd(["vendor","nama vendor","supplier"],ci+1,terima+1),po:fwd(["qty po"],ci+1,terima+1),terima,satuan:fwd(["satuan"],terima+1,terima+4)});
+      usedT.add(tgl);usedR.add(terima);
+    }
+  }
+  return tables;
+}
+async function loadRecLive(){
+  const st=document.getElementById("status");st.textContent="⏳ Mengunduh 12 tab penerimaan…";
+  try{
+    const rn=s=>{if(!s)return 0;const x=parseFloat(String(s).replace(/[^0-9.\-]/g,""));return isNaN(x)?0:x;};
+    const isD=s=>/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test((s||"").trim());
+    const perMonth={},perItem={},perVendor={},perDate={},perMonthItem={},perMonthDate={},perMonthVendor={};
+    const all=await Promise.all(REC_TABS.map(([label,gid])=>fetch(`https://docs.google.com/spreadsheets/d/${REC_SHEET}/export?format=csv&gid=${gid}`).then(r=>{if(!r.ok)throw 0;return r.text();}).then(t=>({label,rows:parseCSV(t)}))));
+    for(const {label,rows} of all){
+      const m=perMonth[label]=perMonth[label]||{po:0,terima:0,n:0,days:new Set(),items:new Set(),vendors:new Set()};
+      for(const t of recFindTables(rows)){
+        for(let i=t.row+1;i<rows.length;i++){
+          const r=rows[i].concat(Array(40).fill(""));
+          const tg=(r[t.tgl]||"").trim(), nm=(r[t.nama]||"").trim();
+          if(!nm||!isD(tg))continue;
+          const po=t.po>=0?rn(r[t.po]):0, tr=rn(r[t.terima]);
+          const ven=(t.vendor>=0?(r[t.vendor]||"").trim():"")||"-", sat=t.satuan>=0?(r[t.satuan]||"").trim():"";
+          m.po+=po;m.terima+=tr;m.n++;m.days.add(tg);m.items.add(nm);m.vendors.add(ven);
+          const e=perItem[nm]=perItem[nm]||[0,0,0,""];e[0]+=po;e[1]+=tr;e[2]++;
+          const v=perVendor[ven]=perVendor[ven]||[0,0,0];v[0]+=po;v[1]+=tr;v[2]++;
+          perDate[tg]=(perDate[tg]||0)+tr;
+          const mi=perMonthItem[label+"||"+nm]=perMonthItem[label+"||"+nm]||[0,0,0];mi[0]+=po;mi[1]+=tr;mi[2]++;
+          perMonthDate[label+"||"+tg]=(perMonthDate[label+"||"+tg]||0)+tr;
+          const mv=perMonthVendor[label+"||"+ven]=perMonthVendor[label+"||"+ven]||[0,0,0];mv[0]+=po;mv[1]+=tr;mv[2]++;
+          if(sat){e[3]=e[3]||sat;}
+        }
+      }
+      m.days=m.days.size;m.items=m.items.size;m.vendors=m.vendors.size;
+    }
+    REC={months:REC_TABS.map(x=>x[0]),perMonth,perItem,perVendor,perDate,perMonthItem,perMonthDate,perMonthVendor,live:true};
+    try{window.RECDATA={months:REC.months,perMonth,perItem,perVendor,perDate,perMonthItem,perMonthDate,perMonthVendor};}catch(e){}
+    st.textContent=`🟢 Penerimaan LIVE update ${new Date().toLocaleString("id-ID")}`;
+  }catch(e){st.textContent="⚠ Gagal fetch penerimaan (kemungkinan CORS). Snapshot tetap tampil.";}
+  renderRec();
+}
+document.getElementById("btnRRefresh").onclick=loadRecLive;
 
 render();
 </script>
