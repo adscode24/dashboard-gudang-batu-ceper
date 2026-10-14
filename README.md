@@ -1,22 +1,19 @@
-# Dashboard Gudang – Batu Ceper
+# Dashboard Warehouse Nasional
 
-Dashboard Kepala Gudang PT Bangor Berkembang Bersama.
-Sumber: Google Sheets Rincian Pengiriman Pesanan 01 Jan – 30 Sep 2026 (Cabang Batu Ceper).
+Dashboard monitoring gudang PT Bangor Berkembang Bersama.
+Sumber: 1 Google Sheets → 1 sheet = 1 tab.
 
-## Isi
-- `index.html` — dashboard single-file + Chart.js CDN. Buka langsung di browser atau via GitHub Pages.
-- `data-perbulan.js` — rincian per-bulan (102 SKU × 341 pelanggan × 11 satuan), auto-generated dari CSV Sheets.
-- `adj-data.js` — pivot adjustment (akun×bulan, tipe×bulan, tipe×gudang), auto-generated dari sheet Data.
-- `rec-data.js` — agregat penerimaan 12 tab bulanan (per bulan, per barang, per vendor, harian), auto-generated dengan parser adaptif.
-- Snapshot bawaan: 2.123.551 qty, 12.638 DO, 102 SKU, 341 pelanggan, 237 hari aktif.
+- `index.html` — dashboard (Chart.js CDN). Buka langsung di browser atau via GitHub Pages.
+- `new-data.js` — snapshot agregat 7 sheet, auto-generated via `gen_new.py`.
+- `gen_new.py` — generator snapshot (fetch CSV tiap sheet → agregat → `new-data.js`).
 
-## Cara pakai filter bulan
-1. Pilih bulan di dropdown (mis. Apr 2026).
-2. Opsional: ketik pencarian barang.
-3. Klik **Tampilkan** — seluruh KPI, grafik & tabel difilter ke bulan itu.
-4. Klik **Reset** untuk kembali ke Semua Bulan.
+## Tab
+1. 🧾 Adjustment — akun & tipe penyesuaian per bulan/gudang (filter bulan, gudang, metrik)
+2. 🚚 Ontime Delivery — % tepat waktu, keterlambatan, per ekspedisi (filter bulan, status)
+3. 🎯 Stock Akurasi — SO vs Accurate harian & per item (cari item)
+4. 📦 Fullfilment MWH — SO vs DO vs Fisik per bulan & item (filter bulan)
+5. 🏅 GMP — skor per warehouse per bulan + heatmap (filter warehouse)
+6. 📢 Komplain — status, CoA, value (filter status)
+7. ⚙️ MPS — man power & productivity Inbound/Outbound (filter section)
 
-Klik **Refresh Live** untuk tarik CSV terbaru dari Google Sheets.
-
-## Regenerasi data per-bulan
-Jalankan script `gen_data.py` (tidak ikut di-commit) atau hubungi maintainer.
+Setiap tab punya tombol **Tampilkan** (terapkan filter), **Reset**, dan **Refresh Data** (tarik live dari Sheets).

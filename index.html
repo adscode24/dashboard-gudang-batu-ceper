@@ -3,19 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard Gudang – Batu Ceper (Jan–Sep 2026)</title>
+<title>Dashboard Warehouse Nasional – PT Bangor</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="data-perbulan.js"></script>
-<script src="adj-data.js"></script>
-<script src="rec-data.js"></script>
+<script src="new-data.js"></script>
 <style>
 :root{--bg:#0f172a;--card:#1e293b;--card2:#334155;--txt:#f1f5f9;--mut:#94a3b8;--acc:#22c55e;--acc2:#38bdf8;--warn:#f59e0b;--red:#ef4444}
 *{box-sizing:border-box}body{margin:0;font-family:'Segoe UI',system-ui,Arial;background:var(--bg);color:var(--txt)}
 header{padding:20px 24px;background:linear-gradient(90deg,#16a34a,#0ea5e9);color:#fff}
 header h1{margin:0;font-size:22px}header p{margin:4px 0 0;opacity:.9;font-size:13px}
 .wrap{padding:20px 24px;max-width:1280px;margin:auto}
+.tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.tabbtn{background:var(--card);color:var(--txt);border:1px solid var(--card2);padding:9px 18px;border-radius:10px;cursor:pointer;font-weight:700}
+.tabbtn.on{background:var(--acc);color:#052e16;border-color:var(--acc)}
 .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;align-items:center}
 .toolbar select,.toolbar input{background:var(--card);color:var(--txt);border:1px solid var(--card2);padding:8px 12px;border-radius:8px}
+.toolbar input[type="date"]{color-scheme:dark}
 .btn{background:var(--acc);border:0;color:#052e16;font-weight:700;padding:9px 16px;border-radius:8px;cursor:pointer}
 .btn.ghost{background:var(--card2);color:#fff}
 .btn.warn{background:var(--warn);color:#431407}
@@ -29,76 +31,30 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px 10px;
 tr.hl td{background:rgba(34,197,94,.12);font-weight:700}
 .badge{display:inline-block;background:#052e16;color:#4ade80;padding:2px 8px;border-radius:20px;font-size:11px}
 #status{font-size:13px;color:var(--mut);margin-bottom:8px}
-#periodeInfo{font-size:13px;margin-bottom:12px;color:#fde68a}
+#periodeInfo,.pinfo{font-size:13px;margin-bottom:12px;color:#fde68a}
 canvas{max-height:340px}
 footer{color:var(--mut);font-size:12px;padding:20px;text-align:center}
-.tabs{display:flex;gap:8px;margin-bottom:14px}
-.tabbtn{background:var(--card);color:var(--txt);border:1px solid var(--card2);padding:9px 18px;border-radius:10px;cursor:pointer;font-weight:700}
-.tabbtn.on{background:var(--acc);color:#052e16;border-color:var(--acc)}
-.toolbar input[type="date"]{color-scheme:dark}
+td.heat{font-weight:700;text-align:right}
 </style>
 </head>
 <body>
 <header>
-<h1>📦 Dashboard Kepala Gudang – Cabang Batu Ceper</h1>
-<p>PT Bangor Berkembang Bersama • Rincian Pengiriman Pesanan 01 Jan – 30 Sep 2026 • Sumber: Google Sheets (live)</p>
+<h1>🏭 Dashboard Warehouse Nasional</h1>
+<p>PT Bangor Berkembang Bersama • Sumber: Google Sheets Warehouse (live) • 1 sheet = 1 tab</p>
 </header>
 <div class="wrap">
 <div id="status">Memuat snapshot…</div>
 <div class="tabs">
-<button class="tabbtn on" id="tabBtnKirim" onclick="showTab('kirim')">📦 Pengiriman</button>
-<button class="tabbtn" id="tabBtnProd" onclick="showTab('prod')">⚙️ Produktivitas</button>
-<button class="tabbtn" id="tabBtnAdj" onclick="showTab('adj')">🧾 Adjustment</button>
-<button class="tabbtn" id="tabBtnRec" onclick="showTab('rec')">📥 Rekap Penerimaan</button>
+<button class="tabbtn on" id="tabBtnAdj" onclick="showTab('adj')">🧾 Adjustment</button>
+<button class="tabbtn" id="tabBtnOntime" onclick="showTab('ontime')">🚚 Ontime Delivery</button>
+<button class="tabbtn" id="tabBtnStock" onclick="showTab('stock')">🎯 Stock Akurasi</button>
+<button class="tabbtn" id="tabBtnFulfil" onclick="showTab('fulfil')">📦 Fullfilment MWH</button>
+<button class="tabbtn" id="tabBtnGmp" onclick="showTab('gmp')">🏅 GMP</button>
+<button class="tabbtn" id="tabBtnKomplain" onclick="showTab('komplain')">📢 Komplain</button>
+<button class="tabbtn" id="tabBtnMps" onclick="showTab('mps')">⚙️ MPS</button>
 </div>
-<div id="tabKirim">
-<div class="toolbar">
-<label>Bulan: <select id="fBulan"><option value="all">Semua Bulan</option></select></label>
-<label>Cari barang: <input id="fCari" placeholder="cth: burger, ayam…"></label>
-<button class="btn" id="btnTampil">Tampilkan</button>
-<button class="btn warn" id="btnReset">Reset</button>
-<button class="btn ghost" id="btnRefresh">↻ Refresh Live</button>
-<label class="btn ghost" style="cursor:pointer">📂 Upload CSV<input type="file" id="fFile" accept=".csv" hidden></label>
-<button class="btn ghost" onclick="window.print()">🖨 Cetak</button>
-</div>
-<div id="periodeInfo"></div>
 
-<div class="kpis" id="kpis"></div>
-
-<div class="grid2">
-<div class="card"><h3 id="tBulanChart">📈 Kuantitas per Bulan + Rata-rata</h3><canvas id="cBulan"></canvas></div>
-<div class="card"><h3 id="tSatuanChart">🍩 Komposisi Satuan</h3><canvas id="cSatuan"></canvas></div>
-</div>
-<div class="grid2">
-<div class="card"><h3 id="tItemChart">🏆 Top 10 Barang (Kuantitas Terbanyak)</h3><canvas id="cItem"></canvas></div>
-<div class="card"><h3 id="tPelChart">🚚 Top 10 Pelanggan / Cabang Tujuan</h3><canvas id="cPel"></canvas></div>
-</div>
-<div class="grid2">
-<div class="card"><h3>🗓 Tabel Rekap per Bulan</h3><div style="overflow:auto"><table id="tBulan"></table></div></div>
-<div class="card"><h3 id="tItemTitle">📋 Top 15 Barang + Share</h3><div style="overflow:auto;max-height:380px"><table id="tItem"></table></div></div>
-</div>
-<div class="card"><h3 id="tDetailTitle">🔎 Detail Barang</h3><div style="overflow:auto;max-height:400px"><table id="tDetail"></table></div></div>
-</div><!-- /tabKirim -->
-<div id="tabProd" style="display:none">
-<div class="toolbar">
-<label>Dari: <input type="date" id="pDari" value="2026-10-01"></label>
-<label>Sampai: <input type="date" id="pSampai" value="2026-10-30"></label>
-<button class="btn" id="btnPTampil">Tampilkan</button>
-<button class="btn warn" id="btnPReset">Reset</button>
-<button class="btn ghost" id="btnPRefresh">↻ Refresh Data</button>
-</div>
-<div id="pPeriode"></div>
-<div class="kpis" id="pKpis"></div>
-<div class="grid2">
-<div class="card"><h3 id="pTonTitle">📦 Tren Tonase Harian IN vs OUT</h3><canvas id="pTon"></canvas></div>
-<div class="card"><h3 id="pActTitle">🎯 Produktivitas Harian (Actual) vs Target</h3><canvas id="pAct"></canvas></div>
-</div>
-<div class="grid2">
-<div class="card"><h3>👷 Man Power Harian IN vs OUT</h3><canvas id="pMp"></canvas></div>
-<div class="card"><h3>📋 Tabel Harian</h3><div style="overflow:auto;max-height:380px"><table id="pTable"></table></div></div>
-</div>
-</div><!-- /tabProd -->
-<div id="tabAdj" style="display:none">
+<div id="tabAdj">
 <div class="toolbar">
 <label>Bulan: <select id="aBulan"><option value="all">Semua Bulan</option></select></label>
 <label>Gudang: <select id="aGudang"><option value="all">Semua Gudang</option></select></label>
@@ -119,321 +75,184 @@ footer{color:var(--mut);font-size:12px;padding:20px;text-align:center}
 <div class="card"><h3 id="aPivotTipeTitle">📋 Pivot Tipe × Bulan</h3><div style="overflow:auto;max-height:400px"><table id="aPivotTipe"></table></div></div>
 </div>
 </div><!-- /tabAdj -->
-<div id="tabRec" style="display:none">
+
+<div id="tabOntime" style="display:none">
 <div class="toolbar">
-<label>Bulan: <select id="rBulan"><option value="all">Semua Bulan</option></select></label>
-<label>Cari barang/vendor: <input id="rCari" placeholder="cth: burger, sari roti…"></label>
-<button class="btn" id="btnRTampil">Tampilkan</button>
-<button class="btn warn" id="btnRReset">Reset</button>
-<button class="btn ghost" id="btnRRefresh">↻ Refresh Data</button>
+<label>Bulan: <select id="oBulan"><option value="all">Semua Bulan</option></select></label>
+<label>Status: <select id="oStatus"><option value="all">Semua Status</option></select></label>
+<button class="btn" id="btnOTampil">Tampilkan</button>
+<button class="btn warn" id="btnOReset">Reset</button>
+<button class="btn ghost" id="btnORefresh">↻ Refresh Data</button>
 </div>
-<div id="rPeriode"></div>
-<div class="kpis" id="rKpis"></div>
+<div id="oPeriode"></div>
+<div class="kpis" id="oKpis"></div>
 <div class="grid2">
-<div class="card"><h3 id="rTrendTitle">📦 Penerimaan per Bulan (PO vs Diterima)</h3><canvas id="rTrend"></canvas></div>
-<div class="card"><h3 id="rDailyTitle">📈 Tren Harian Qty Diterima</h3><canvas id="rDaily"></canvas></div>
-</div>
-<div class="grid2">
-<div class="card"><h3 id="rItemTitle">🏆 Barang Paling Banyak Diterima</h3><canvas id="rItem"></canvas></div>
-<div class="card"><h3 id="rVenTitle">🚚 Vendor Teratas</h3><canvas id="rVen"></canvas></div>
+<div class="card"><h3 id="oDistTitle">🍩 Distribusi Status</h3><canvas id="oDist"></canvas></div>
+<div class="card"><h3 id="oEkspTitle">🚚 Ontime per Ekspedisi</h3><canvas id="oEksp"></canvas></div>
 </div>
 <div class="grid2">
-<div class="card"><h3>🗓 Rekap per Bulan</h3><div style="overflow:auto"><table id="rBulan"></table></div></div>
-<div class="card"><h3 id="rTopTitle">📋 Top Barang Diterima</h3><div style="overflow:auto;max-height:380px"><table id="rTop"></table></div></div>
+<div class="card"><h3 id="oTrendTitle">📈 Tren Harian Pengiriman</h3><canvas id="oTrend"></canvas></div>
+<div class="card"><h3>⚠️ Keterlambatan (Actual &gt; ETA)</h3><div style="overflow:auto;max-height:340px"><table id="oDelay"></table></div></div>
 </div>
+<div class="card"><h3 id="oTableTitle">📋 Detail Pengiriman</h3><div style="overflow:auto;max-height:400px"><table id="oTable"></table></div></div>
+</div><!-- /tabOntime -->
+
+<div id="tabStock" style="display:none">
+<div class="toolbar">
+<label>Cari item: <input id="sCari" placeholder="cth: patty, sosis…"></label>
+<button class="btn" id="btnSTampil">Tampilkan</button>
+<button class="btn warn" id="btnSReset">Reset</button>
+<button class="btn ghost" id="btnSRefresh">↻ Refresh Data</button>
+</div>
+<div id="sPeriode"></div>
+<div class="kpis" id="sKpis"></div>
 <div class="grid2">
-<div class="card"><h3>🏭 Rekap per Vendor</h3><div style="overflow:auto;max-height:380px"><table id="rVenTable"></table></div></div>
-<div class="card"><h3>⚠️ Selisih Terbesar (PO − Diterima)</h3><div style="overflow:auto;max-height:380px"><table id="rSelisih"></table></div></div>
+<div class="card"><h3 id="sAccTitle">🎯 Akurasi Harian (%)</h3><canvas id="sAcc"></canvas></div>
+<div class="card"><h3 id="sSelTitle">📊 Selisih Harian (abs)</h3><canvas id="sSel"></canvas></div>
 </div>
-</div><!-- /tabRec -->
+<div class="card"><h3 id="sTopTitle">🏆 Item Selisih Terbesar</h3><canvas id="sTop"></canvas></div>
+<div class="grid2">
+<div class="card"><h3 id="sItemTitle">📋 Akurasi per Item</h3><div style="overflow:auto;max-height:400px"><table id="sItems"></table></div></div>
+<div class="card"><h3>🗓 Akurasi per Tanggal</h3><div style="overflow:auto;max-height:400px"><table id="sDaily"></table></div></div>
 </div>
-<footer>Snapshot bawaan: Jan–Sep 2026 • Total 2.123.551 pcs-eq • 12.638 DO • 102 SKU • 341 pelanggan • Pilih bulan lalu klik Tampilkan untuk filter seluruh dashboard.</footer>
+</div><!-- /tabStock -->
+
+<div id="tabFulfil" style="display:none">
+<div class="toolbar">
+<label>Bulan: <select id="uBulan"><option value="all">Semua Bulan</option></select></label>
+<button class="btn" id="btnUTampil">Tampilkan</button>
+<button class="btn warn" id="btnUReset">Reset</button>
+<button class="btn ghost" id="btnURefresh">↻ Refresh Data</button>
+</div>
+<div id="uPeriode"></div>
+<div class="kpis" id="uKpis"></div>
+<div class="grid2">
+<div class="card"><h3>📦 SO vs DO vs Fisik per Bulan</h3><canvas id="uMonth"></canvas></div>
+<div class="card"><h3 id="uDailyTitle">📈 Tren Harian</h3><canvas id="uDaily"></canvas></div>
+</div>
+<div class="card"><h3 id="uGapTitle">⚠️ Gap Terbesar (DO − SO) per Item</h3><canvas id="uGap"></canvas></div>
+<div class="card"><h3 id="uItemTitle">📋 Realisasi per Item</h3><div style="overflow:auto;max-height:420px"><table id="uItems"></table></div></div>
+</div><!-- /tabFulfil -->
+
+<div id="tabGmp" style="display:none">
+<div class="toolbar">
+<label>Warehouse: <select id="gWh"><option value="all">Semua Warehouse</option></select></label>
+<button class="btn" id="btnGTampil">Tampilkan</button>
+<button class="btn warn" id="btnGReset">Reset</button>
+<button class="btn ghost" id="btnGRefresh">↻ Refresh Data</button>
+</div>
+<div id="gPeriode"></div>
+<div class="kpis" id="gKpis"></div>
+<div class="grid2">
+<div class="card"><h3>📈 Tren Skor GMP per Warehouse</h3><canvas id="gTrend"></canvas></div>
+<div class="card"><h3>🏅 Rata-rata per Warehouse</h3><canvas id="gAvg"></canvas></div>
+</div>
+<div class="card"><h3>🗓 Matriks Skor (Bulan × Warehouse)</h3><div style="overflow:auto"><table id="gMatrix"></table></div></div>
+</div><!-- /tabGmp -->
+
+<div id="tabKomplain" style="display:none">
+<div class="toolbar">
+<label>Status: <select id="kStatus"><option value="all">Semua Status</option></select></label>
+<button class="btn" id="btnKTampil">Tampilkan</button>
+<button class="btn warn" id="btnKReset">Reset</button>
+<button class="btn ghost" id="btnKRefresh">↻ Refresh Data</button>
+</div>
+<div id="kPeriode"></div>
+<div class="kpis" id="kKpis"></div>
+<div class="grid2">
+<div class="card"><h3>🍩 Komplain per Status</h3><canvas id="kStatusC"></canvas></div>
+<div class="card"><h3>📊 Komplain per CoA</h3><canvas id="kCoa"></canvas></div>
+</div>
+<div class="card"><h3 id="kTableTitle">📋 Daftar Komplain</h3><div style="overflow:auto"><table id="kTable"></table></div></div>
+</div><!-- /tabKomplain -->
+
+<div id="tabMps" style="display:none">
+<div class="toolbar">
+<label>Section: <select id="mSec"></select></label>
+<button class="btn" id="btnMTampil">Tampilkan</button>
+<button class="btn warn" id="btnMReset">Reset</button>
+<button class="btn ghost" id="btnMRefresh">↻ Refresh Data</button>
+</div>
+<div id="mPeriode"></div>
+<div class="kpis" id="mKpis"></div>
+<div class="grid2">
+<div class="card"><h3 id="mProdTitle">⚙️ Tren Productivity Harian</h3><canvas id="mProd"></canvas></div>
+<div class="card"><h3 id="mGramTitle">📦 Tren Gramasi Harian</h3><canvas id="mGram"></canvas></div>
+</div>
+<div class="card"><h3>🏁 Rata-rata Productivity per Section</h3><canvas id="mSecAvg"></canvas></div>
+<div class="card"><h3 id="mTableTitle">📋 Harian per Section</h3><div style="overflow:auto;max-height:420px"><table id="mTable"></table></div></div>
+</div><!-- /tabMps -->
+
+</div>
+<footer>Dashboard Warehouse Nasional • 7 sheet = 7 tab • Snapshot bawaan, Refresh Data untuk live dari Google Sheets.</footer>
 
 <script>
-// ===== SNAPSHOT agregat =====
-const SHEET_ID="1MScpYEAwHbmaBWF7QBA99TevwQbPNLuEz3L8pERYyFE", GID="1106773458";
-const SNAP={
-monthly:{"2026-01":{qty:243835,do:1649,sku:80,pel:228,hari:27},"2026-02":{qty:198768,do:1474,sku:79,pel:225,hari:24},"2026-03":{qty:208258,do:1279,sku:86,pel:279,hari:26},"2026-04":{qty:391145,do:2019,sku:92,pel:302,hari:27},"2026-05":{qty:342077,do:2032,sku:82,pel:301,hari:27},"2026-06":{qty:193679,do:1010,sku:70,pel:235,hari:26},"2026-07":{qty:176226,do:932,sku:52,pel:207,hari:26},"2026-08":{qty:169673,do:1012,sku:64,pel:226,hari:26},"2026-09":{qty:199890,do:1231,sku:66,pel:220,hari:28}},
-topItems:[["Burger Bun (20)",1214611],["HD Bun",108877],["Box Hampers",63120],["Ayam Crispy",52491],["Chicken Nugget",43622],["Kentang Goreng",40682],["Spunbond Polos",38000],["Spunbond Polos + Sticker",38000],["Bangor Sticker 10Cm",38000],["Bangor Fried Chicken",32406],["Sosis",29665],["Keju Slice Non Brand",26488],["Kentang Goreng Mc Cain",25527],["Smoke Beef Slice",22103],["Dus Besar",18875]],
-topPel:[["Bangor - Maxima Sovifood Hutama, PT",177281],["Bangor - Medan",75722],["Bangor - Mulia Mitra Boga, PT",40248],["BBT - Gudang Soreang",24664],["Bangor - Wayhalim Lampung",21370],["Bangor - Gunung Sari Balikpapan",21214],["Bangor - Samarinda",20152],["Bangor - Sepinggan Balikpapan",19039],["Bangor - MT Haryono",18174],["Bangor - Balikpapan Baru",17883]],
-bySatuan:{"Pack":1716852,"Pcs":256287,"Bks":66209,"Dus":41071,"Ikat":38721,"Dus40":1489,"Jrg":2441,"Kg":60,"Buku":313,"Rim":79,"Paket":29},
-totals:{qty:2123551,do:12638,sku:102,pel:341,hari:237},
-topDays:[["21 Apr 2026",42464],["03 May 2026",37398],["08 May 2026",33274],["20 Apr 2026",32098],["06 Sep 2026",31581]]
-};
-const NAMA_BULAN={"2026-01":"Jan 2026","2026-02":"Feb 2026","2026-03":"Mar 2026","2026-04":"Apr 2026","2026-05":"Mei 2026","2026-06":"Jun 2026","2026-07":"Jul 2026","2026-08":"Agu 2026","2026-09":"Sep 2026"};
-let DB={...SNAP, live:false, allItems:SNAP.topItems.map(([nama,qty])=>({nama,qty}))};
-let APPLIED={bulan:"all", cari:""};
+// ===== SHARED =====
+const NEWSHEET="1T-rBKq7JuPsj6fa4y9u58vVr5fdKcQp0gG6DyEDL_-c";
+const GIDS={adj:"0",ontime:"1842167571",stock:"224297307",fulfil:"1512613846",gmp:"621504746",komplain:"404119534",mps:"1949034971"};
 const fmt=n=>Number(n||0).toLocaleString("id-ID");
-let charts={};
-const IBM=()=> (typeof ITEMBYMONTH!=="undefined"?ITEMBYMONTH:(DB.itemByMonth||{}));
-const SBM=()=> (typeof SATBYMONTH!=="undefined"?SATBYMONTH:(DB.satByMonth||{}));
-const PBM=()=> (typeof PELBYMONTH!=="undefined"?PELBYMONTH:(DB.pelByMonth||{}));
-
-function topItemBulan(b,n){
-  const src=IBM(), out=[];
-  for(const nama of Object.keys(src)){const q=src[nama][b]||0; if(q>0) out.push([nama,q]);}
-  return out.sort((a,c)=>c[1]-a[1]).slice(0,n);
-}
-function topPelBulan(b,n){
-  const src=PBM(), out=[];
-  for(const p of Object.keys(src)){const q=src[p][b]||0; if(q>0) out.push([p,q]);}
-  return out.sort((a,c)=>c[1]-a[1]).slice(0,n);
-}
-function satBulan(b){
-  const src=SBM(), out={};
-  for(const s of Object.keys(src)){const q=src[s][b]||0; if(q>0) out[s]=q;}
-  return out;
-}
-
-function render(){
-  const keys=Object.keys(DB.monthly).sort();
-  const sel=document.getElementById("fBulan");
-  if(sel.options.length<=1){keys.forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=NAMA_BULAN[k]||k;sel.appendChild(o);});}
-  sel.value=APPLIED.bulan;
-  const B=APPLIED.bulan, q=APPLIED.cari;
-  const isAll=(B==="all");
-  const label=isAll?"Semua Bulan (Jan–Sep 2026)":(NAMA_BULAN[B]||B);
-  document.getElementById("periodeInfo").innerHTML=`📌 Periode aktif: <b>${label}</b>`+(isAll?"":` — seluruh KPI, grafik & tabel difilter bulan ini. Klik <b>Reset</b> untuk kembali.`);
-  document.getElementById("tSatuanChart").textContent=isAll?"🍩 Komposisi Satuan (Semua Bulan)":`🍩 Komposisi Satuan (${label})`;
-  document.getElementById("tItemChart").textContent=isAll?"🏆 Top 10 Barang (Semua Bulan)":`🏆 Top 10 Barang (${label})`;
-  document.getElementById("tPelChart").textContent=isAll?"🚚 Top 10 Pelanggan (Semua Bulan)":`🚚 Top 10 Pelanggan (${label})`;
-  document.getElementById("tItemTitle").textContent=isAll?"📋 Top 15 Barang + Share":"📋 Top 15 Barang + Share ("+label+")";
-  document.getElementById("tDetailTitle").textContent=isAll?"🔎 Detail Barang (Semua Bulan)":"🔎 Detail Barang ("+label+")";
-
-  const total=DB.totals.qty, avgBulan=Math.round(total/keys.length);
-  const maxK=keys.reduce((a,b)=>DB.monthly[b].qty>DB.monthly[a].qty?b:a,keys[0]);
-
-  // dataset sesuai periode
-  let kpiQty, kpiDO, kpiSKU, kpiPel, kpiHari, topItem, topItemShare, avgHari, avgDO, bySat, ti, tp;
-  if(isAll){
-    kpiQty=total; kpiDO=DB.totals.do; kpiSKU=DB.totals.sku; kpiPel=DB.totals.pel; kpiHari=DB.totals.hari;
-    avgHari=Math.round(total/(DB.totals.hari||237)); avgDO=Math.round(total/(DB.totals.do||1));
-    topItem=DB.topItems[0]; topItemShare=(topItem[1]/total*100);
-    bySat=DB.bySatuan; ti=DB.topItems.slice(0,10); tp=DB.topPel.slice(0,10);
-  } else {
-    const m=DB.monthly[B];
-    kpiQty=m.qty; kpiDO=m.do; kpiSKU=m.sku; kpiPel=m.pel; kpiHari=m.hari;
-    avgHari=Math.round(m.qty/m.hari); avgDO=Math.round(m.qty/m.do);
-    const tb=topItemBulan(B,1); topItem=tb.length?tb[0]:["—",0]; topItemShare=m.qty?(topItem[1]/m.qty*100):0;
-    bySat=satBulan(B); ti=topItemBulan(B,10); tp=topPelBulan(B,10);
-  }
-
-  document.getElementById("kpis").innerHTML=`
-  <div class="kpi"><small>Total Kuantitas (${label})</small><b>${fmt(kpiQty)}</b><span>${isAll?"semua satuan (pcs-eq)":"qty bulan ini"}</span></div>
-  <div class="kpi"><small>${isAll?"Rata-rata / Bulan":"Rata-rata Harian"}</small><b>${fmt(isAll?avgBulan:avgHari)}</b><span>${isAll?`total ÷ ${keys.length} bulan`:`${fmt(kpiHari)} hari aktif`}</span></div>
-  <div class="kpi"><small>${isAll?"Bulan Tertinggi":"Share vs Total"}</small><b>${isAll?(NAMA_BULAN[maxK]||maxK):(kpiQty/total*100).toFixed(1)+"%"}</b><span>${isAll?`${fmt(DB.monthly[maxK].qty)} (${(DB.monthly[maxK].qty/total*100).toFixed(1)}%)`:`dari total ${fmt(total)}`}</span></div>
-  <div class="kpi"><small>Kuantitas Terbanyak (SKU)</small><b style="font-size:16px">${topItem[0]}</b><span>${fmt(topItem[1])} • ${topItemShare.toFixed(1)}% ${isAll?"dari total":"dari bulan ini"}</span></div>
-  <div class="kpi"><small>Total DO (${label})</small><b>${fmt(kpiDO)}</b><span>rata-rata ${fmt(avgDO)}/DO</span></div>
-  <div class="kpi"><small>Rata-rata ${isAll?"/ Hari":"/ DO"}</small><b>${fmt(isAll?avgHari:avgDO)}${isAll?"/hari":"/DO"}</b><span>${isAll?`${fmt(kpiHari)} hari aktif • tersibuk ${DB.topDays[0][0]} (${fmt(DB.topDays[0][1])})`:`${fmt(kpiHari)} hari aktif • ${fmt(avgHari)}/hari`}</span></div>
-  <div class="kpi"><small>SKU Aktif</small><b>${fmt(kpiSKU)}</b><span>${fmt(kpiPel)} pelanggan/cabang</span></div>
-  <div class="kpi"><small>Status Data</small><b style="font-size:15px">${DB.live?"🟢 LIVE Sheets":"🟡 Snapshot"}</b><span>${DB.live?"diperbarui dari Google Sheets":"klik Refresh Live untuk update"}</span></div>`;
-
-  Object.values(charts).forEach(c=>c.destroy());charts={};
-  charts.bulan=new Chart(document.getElementById("cBulan"),{type:"bar",data:{labels:keys.map(k=>NAMA_BULAN[k]||k),datasets:[{label:"Kuantitas",data:keys.map(k=>DB.monthly[k].qty),backgroundColor:keys.map(k=>isAll?(k===maxK?"#22c55e":"#38bdf8"):(k===B?"#22c55e":"#475569"))},{label:"Rata-rata",data:keys.map(()=>avgBulan),type:"line",borderColor:"#f59e0b",borderDash:[6,4],pointRadius:0}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}}}});
-  charts.satuan=new Chart(document.getElementById("cSatuan"),{type:"doughnut",data:{labels:Object.keys(bySat),datasets:[{data:Object.values(bySat),backgroundColor:["#22c55e","#38bdf8","#f59e0b","#a78bfa","#f472b6","#94a3b8","#facc15","#34d399","#fb7185","#2dd4bf","#c084fc"]}]},options:{plugins:{legend:{position:"right",labels:{color:"#e2e8f0",boxWidth:12}}}}});
-  charts.item=new Chart(document.getElementById("cItem"),{type:"bar",data:{labels:ti.map(x=>x[0]),datasets:[{data:ti.map(x=>x[1]),backgroundColor:"#22c55e"}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#e2e8f0",font:{size:11}}}}}});
-  charts.pel=new Chart(document.getElementById("cPel"),{type:"bar",data:{labels:tp.map(x=>x[0].slice(0,28)),datasets:[{data:tp.map(x=>x[1]),backgroundColor:"#38bdf8"}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#e2e8f0",font:{size:11}}}}}});
-
-  let h=`<tr><th>Bulan</th><th class="n">Kuantitas</th><th class="n">Share</th><th class="n">vs Rata²</th><th class="n">DO</th><th class="n">Avg/DO</th><th class="n">Avg/Hari</th></tr>`;
-  keys.forEach(k=>{const m=DB.monthly[k],d=m.qty-avgBulan;h+=`<tr class="${(!isAll&&k===B)?"hl":""}"><td><b>${NAMA_BULAN[k]||k}</b> ${k===maxK?'<span class="badge">peak</span>':""}${(!isAll&&k===B)?' <span class="badge">aktif</span>':""}</td><td class="n">${fmt(m.qty)}</td><td class="n">${(m.qty/total*100).toFixed(1)}%</td><td class="n" style="color:${d>=0?"#4ade80":"#f87171"}">${d>=0?"+":""}${fmt(d)}</td><td class="n">${fmt(m.do)}</td><td class="n">${fmt(Math.round(m.qty/m.do))}</td><td class="n">${fmt(Math.round(m.qty/m.hari))}</td></tr>`;});
-  h+=`<tr><td><b>Rata-rata/bln</b></td><td class="n"><b>${fmt(avgBulan)}</b></td><td class="n">${(100/keys.length).toFixed(1)}%</td><td class="n">—</td><td class="n">${fmt(Math.round(DB.totals.do/keys.length))}</td><td class="n">${fmt(Math.round(total/(DB.totals.do||1)))}</td><td class="n">${fmt(Math.round(total/(DB.totals.hari||1)))}</td></tr>`;
-  document.getElementById("tBulan").innerHTML=h;
-
-  // tabel top15 sesuai periode + search
-  const rows15=isAll?DB.topItems.slice(0,60):topItemBulan(B,60);
-  const f15=rows15.filter(x=>x[0].toLowerCase().includes(q));
-  const denom=isAll?total:(DB.monthly[B]?DB.monthly[B].qty:1);
-  let h15=`<tr><th>#</th><th>Nama Barang</th><th class="n">Qty</th><th class="n">Share</th></tr>`;
-  f15.slice(0,15).forEach((x,i)=>{h15+=`<tr><td>${i+1}</td><td>${x[0]}</td><td class="n">${fmt(x[1])}</td><td class="n">${(x[1]/denom*100).toFixed(2)}%</td></tr>`;});
-  document.getElementById("tItem").innerHTML=h15;
-
-  // detail sesuai periode + search
-  let drows;
-  if(isAll){
-    const src=IBM(); const names=Object.keys(src).length?Object.keys(src):DB.allItems.map(x=>x.nama);
-    drows=names.map(nm=>({nama:nm,qty:Object.values(src[nm]||{}).reduce((a,b)=>a+b,0)||(DB.allItems.find(a=>a.nama===nm)||{qty:0}).qty})).filter(x=>x.qty>0&&x.nama.toLowerCase().includes(q)).sort((a,b)=>b.qty-a.qty);
-  } else {
-    const src=IBM(); drows=Object.keys(src).map(nm=>({nama:nm,qty:src[nm][B]||0})).filter(x=>x.qty>0&&x.nama.toLowerCase().includes(q)).sort((a,b)=>b.qty-a.qty);
-  }
-  const tot=drows.reduce((s,x)=>s+x.qty,0)||1;
-  let h2=`<tr><th>Nama Barang</th><th class="n">Qty ${isAll?"(total)":label}</th><th class="n">Share</th></tr>`;
-  drows.slice(0,100).forEach(x=>{h2+=`<tr><td>${x.nama}</td><td class="n">${fmt(x.qty)}</td><td class="n">${(x.qty/tot*100).toFixed(2)}%</td></tr>`;});
-  document.getElementById("tDetail").innerHTML=h2+`<p style="color:#94a3b8;font-size:12px">Periode: ${label} • Menampilkan ${Math.min(100,drows.length)} dari ${fmt(drows.length)} item • total tampilan ${fmt(tot)}</p>`;
-}
-
-// tombol filter
-document.getElementById("btnTampil").onclick=()=>{
-  APPLIED.bulan=document.getElementById("fBulan").value;
-  APPLIED.cari=document.getElementById("fCari").value.trim().toLowerCase();
-  render();
-};
-document.getElementById("btnReset").onclick=()=>{
-  document.getElementById("fBulan").value="all";
-  document.getElementById("fCari").value="";
-  APPLIED={bulan:"all",cari:""};
-  render();
-};
-document.getElementById("fCari").addEventListener("keydown",e=>{if(e.key==="Enter")document.getElementById("btnTampil").click();});
-
-// ===== LIVE LOAD =====
-function parseQty(s){if(!s)return 0;const n=parseInt(String(s).trim().replace(/\./g,"").replace(/[^0-9]/g,""),10);return isNaN(n)?0:n;}
+const fmtRp=n=>"Rp "+Number(Math.round(n||0)).toLocaleString("id-ID");
+const PAL=["#22c55e","#38bdf8","#f59e0b","#a78bfa","#f472b6","#facc15","#34d399","#fb7185","#2dd4bf","#c084fc","#94a3b8","#f97316"];
 function parseCSV(t){const rows=[];let row=[],cur="",qq=false;for(let i=0;i<t.length;i++){const c=t[i];if(qq){if(c==='"'){if(t[i+1]==='"'){cur+='"';i++;}else qq=false;}else cur+=c;}else{if(c==='"')qq=true;else if(c===','){row.push(cur);cur="";}else if(c==='\n'){row.push(cur);rows.push(row);row=[];cur="";}else if(c==='\r'){}else cur+=c;}}if(cur!==""||row.length){row.push(cur);rows.push(row);}return rows;}
-async function loadLive(){
-  const st=document.getElementById("status");st.textContent="⏳ Mengunduh CSV live (~5MB, 91rb baris)…";
-  const urls=[`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${GID}`,`https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`];
-  let text=null;
-  for(const u of urls){try{const r=await fetch(u);if(!r.ok)continue;text=await r.text();if(text&&text.length>1000)break;}catch(e){}}
-  if(!text){st.textContent="⚠ Gagal fetch live (kemungkinan CORS). Gunakan Upload CSV atau pakai snapshot.";return;}
-  st.textContent=`⏳ Parsing ${(text.length/1e6).toFixed(1)}MB…`;
-  await new Promise(r=>setTimeout(r,30));
-  const rows=parseCSV(text);
-  let hIdx=rows.findIndex(r=>r.join("|").includes("Nomor #"));if(hIdx<0)hIdx=4;
-  const data=rows.slice(hIdx+1);
-  const idM={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
-  let lN="",lT="",lP="";const monthly={},byItem={},byPel={},bySat={},itemByMonth={},satByMonth={},pelByMonth={};const doSet=new Set(),daySet=new Set();let total=0;
-  for(const rr of data){if(!rr||rr.length<10)continue;let no=(rr[1]||"").trim(),tg=(rr[2]||"").trim(),pl=(rr[4]||"").trim();if(no)lN=no;else no=lN;if(tg)lT=tg;else tg=lT;if(pl)lP=pl;else pl=lP;const nm=(rr[7]||"").trim(),sa=(rr[8]||"").trim()||"-";if(!nm)continue;const qty=parseQty(rr[9]);const m=tg.match(/(\d+)\s+(\w+)\s+(\d+)/);if(!m||idM[m[2]]===undefined)continue;const k=`${m[3]}-${String(idM[m[2]]+1).padStart(2,"0")}`;if(!monthly[k])monthly[k]={qty:0,do:new Set(),sku:new Set(),pel:new Set(),hari:new Set()};monthly[k].qty+=qty;monthly[k].do.add(no);monthly[k].sku.add(nm);monthly[k].pel.add(pl);monthly[k].hari.add(tg);byItem[nm]=(byItem[nm]||0)+qty;byPel[pl]=(byPel[pl]||0)+qty;bySat[sa]=(bySat[sa]||0)+qty;if(!itemByMonth[nm])itemByMonth[nm]={};itemByMonth[nm][k]=(itemByMonth[nm][k]||0)+qty;if(!satByMonth[sa])satByMonth[sa]={};satByMonth[sa][k]=(satByMonth[sa][k]||0)+qty;if(!pelByMonth[pl])pelByMonth[pl]={};pelByMonth[pl][k]=(pelByMonth[pl][k]||0)+qty;doSet.add(no);daySet.add(tg);total+=qty;}
-  const mOut={};for(const k of Object.keys(monthly))mOut[k]={qty:monthly[k].qty,do:monthly[k].do.size,sku:monthly[k].sku.size,pel:monthly[k].pel.size,hari:monthly[k].hari.size};
-  DB={monthly:mOut,topItems:Object.entries(byItem).sort((a,b)=>b[1]-a[1]),topPel:Object.entries(byPel).sort((a,b)=>b[1]-a[1]),bySatuan:bySat,totals:{qty:total,do:doSet.size,sku:Object.keys(byItem).length,pel:Object.keys(byPel).length,hari:daySet.size},topDays:SNAP.topDays,live:true,allItems:Object.entries(byItem).map(([nama,qty])=>({nama,qty})),itemByMonth,satByMonth,pelByMonth};
-  try{window.ITEMBYMONTH=itemByMonth;window.SATBYMONTH=satByMonth;window.PELBYMONTH=pelByMonth;}catch(e){}
-  st.textContent=`🟢 LIVE: ${fmt(data.length)} baris • ${fmt(total)} qty • ${fmt(doSet.size)} DO • update ${new Date().toLocaleString("id-ID")}`;
-  render();
-}
-document.getElementById("btnRefresh").onclick=loadLive;
-document.getElementById("fFile").onchange=e=>{const f=e.target.files[0];if(!f)return;document.getElementById("status").textContent=`📂 File ${f.name} dipilih — gunakan Refresh Live untuk data Sheets terbaru.`;};
-// ===== TAB SWITCH =====
+function numId(s){if(!s)return 0;const n=parseFloat(String(s).replace(/[^0-9.\-]/g,""));return isNaN(n)?0:n;}
 function showTab(w){
-  ["kirim","prod","adj","rec"].forEach(k=>{
+  ["adj","ontime","stock","fulfil","gmp","komplain","mps"].forEach(k=>{
     document.getElementById("tab"+k[0].toUpperCase()+k.slice(1)).style.display=w===k?"":"none";
     document.getElementById("tabBtn"+k[0].toUpperCase()+k.slice(1)).classList.toggle("on",w===k);
   });
-  if(w==="prod") renderProd();
-  if(w==="adj") renderAdj();
-  if(w==="rec") renderRec();
+  if(w==="adj")renderAdj();
+  if(w==="ontime")renderOntime();
+  if(w==="stock")renderStock();
+  if(w==="fulfil")renderFulfil();
+  if(w==="gmp")renderGmp();
+  if(w==="komplain")renderKomplain();
+  if(w==="mps")renderMps();
 }
 
-// ===== PRODUKTIVITAS (Warehouse Productivity IN/OUT) =====
-const PROD_SHEET="1pWF__nTdnkZBJtuPg7nBMg9qLvf0Z6ME9jlNpHJgxis", PROD_IN_GID="674359341", PROD_OUT_GID="1474638367";
-const PRODIN_SNAP=[["1 Oct 2026","200","14,818.25","7.00","15.00","141.13"],["2 Oct 2026","200","32,543.05","7.00","13.00","357.62"],["3 Oct 2026","200","7,845.65","7.00","9.00","124.53"],["4 Oct 2026","200","0.00","7.00","0.00","0.00"],["5 Oct 2026","200","14,246.20","7.00","12.00","169.60"],["6 Oct 2026","200","12,278.30","7.00","9.00","194.89"],["7 Oct 2026","200","12,613.35","7.00","9.00","200.21"],["8 Oct 2026","200","0.00","7.00","8.00","0.00"],["9 Oct 2026","200","0.00","7.00","7.00","0.00"],["10 Oct 2026","200","0.00","7.00","7.00","0.00"],["11 Oct 2026","200","0.00","7.00","8.00","0.00"],["12 Oct 2026","200","0.00","7.00","10.00","0.00"],["13 Oct 2026","200","0.00","","0.00","0.00"],["14 Oct 2026","200","0.00","7.00","0.00","0.00"],["15 Oct 2026","200","0.00","7.00","0.00","0.00"],["16 Oct 2026","200","0.00","7.00","0.00","0.00"],["17 Oct 2026","200","0.00","7.00","0.00","0.00"],["18 Oct 2026","200","0.00","7.00","0.00","0.00"],["19 Oct 2026","200","0.00","7.00","0.00","0.00"],["20 Oct 2026","200","0.00","7.00","0.00","0.00"],["21 Oct 2026","200","0.00","7.00","0.00","0.00"],["22 Oct 2026","200","0.00","7.00","0.00","0.00"],["23 Oct 2026","200","0.00","7.00","0.00","0.00"],["24 Oct 2026","200","0.00","7.00","0.00","0.00"],["25 Oct 2026","200","0.00","7.00","0.00","0.00"],["26 Oct 2026","200","0.00","7.00","0.00","0.00"],["27 Oct 2026","200","0.00","7.00","0.00","0.00"],["28 Oct 2026","200","0.00","7.00","0.00","0.00"],["29 Oct 2026","200","0.00","7.00","0.00","0.00"],["30 Oct 2026","200","0.00","7.00","0.00","0.00"]];
-const PRODOUT_SNAP=[["1 Oct 2026","200","14,818.25","7.00","17.00","124.52"],["2 Oct 2026","200","0.00","7.00","19.00","0.00"],["3 Oct 2026","200","0.00","7.00","20.00","0.00"],["4 Oct 2026","200","0.00","7.00","9.00","0.00"],["5 Oct 2026","200","0.00","7.00","9.00","0.00"],["6 Oct 2026","200","0.00","","","0.00"],["7 Oct 2026","200","0.00","7.00","9.00","0.00"],["8 Oct 2026","200","0.00","7.00","8.00","0.00"],["9 Oct 2026","200","0.00","7.00","9.00","0.00"],["10 Oct 2026","200","0.00","7.00","8.00","0.00"],["11 Oct 2026","200","0.00","7.00","12.00","0.00"],["12 Oct 2026","200","0.00","7.00","17.00","0.00"],["13 Oct 2026","200","0.00","","","0.00"],["14 Oct 2026","200","0.00","7.00","14.00","0.00"],["15 Oct 2026","200","0.00","7.00","18.00","0.00"],["16 Oct 2026","200","0.00","7.00","18.00","0.00"],["17 Oct 2026","200","0.00","7.00","12.00","0.00"],["18 Oct 2026","200","0.00","7.00","16","0.00"],["19 Oct 2026","200","0.00","7.00","24","0.00"],["20 Oct 2026","200","0.00","","","0.00"],["21 Oct 2026","200","0.00","7.00","18","0.00"],["22 Oct 2026","200","0.00","7.00","12","0.00"],["23 Oct 2026","200","0.00","7.00","17","0.00"],["24 Oct 2026","200","0.00","7.00","11","0.00"],["25 Oct 2026","200","0.00","7.00","18","0.00"],["26 Oct 2026","200","0.00","7.00","","0.00"],["27 Oct 2026","200","0.00","7.00","","0.00"],["28 Oct 2026","200","0.00","7.00","","0.00"],["29 Oct 2026","200","0.00","7.00","","0.00"],["30 Oct 2026","200","0.00","7.00","","0.00"]];
-const MON3={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
-function pNum(s){if(s==null||s==="")return 0;const n=parseFloat(String(s).replace(/,/g,""));return isNaN(n)?0:n;}
-function pDate(s){const m=String(s).match(/(\d+)\s+(\w+)\s+(\d+)/);if(!m||MON3[m[2]]===undefined)return null;return new Date(+m[3],MON3[m[2]],+m[1]);}
-function pRec(rows){return rows.map(r=>({tgl:r[0],d:pDate(r[0]),target:pNum(r[1]),ton:pNum(r[2]),jam:pNum(r[3]),mp:pNum(r[4]),act:pNum(r[5])})).filter(x=>x.d);}
-let PROD={inRec:pRec(PRODIN_SNAP), outRec:pRec(PRODOUT_SNAP), live:false};
-let PRANGE={dari:"2026-10-01", sampai:"2026-10-30"};
-let pCharts={};
-const fmtD=d=>d.toLocaleDateString("id-ID",{day:"numeric",month:"short"});
-function renderProd(){
-  const d0=new Date(PRANGE.dari+"T00:00:00"), d1=new Date(PRANGE.sampai+"T00:00:00");
-  const fi=PROD.inRec.filter(x=>x.d>=d0&&x.d<=d1), fo=PROD.outRec.filter(x=>x.d>=d0&&x.d<=d1);
-  const all=[...fi,...fo].map(x=>x.tgl).filter((v,i,a)=>a.indexOf(v)===i).sort((a,b)=>pDate(a)-pDate(b));
-  const mIn={}, mOut={}; fi.forEach(x=>mIn[x.tgl]=x); fo.forEach(x=>mOut[x.tgl]=x);
-  const sum=a=>a.reduce((s,x)=>s+x,0);
-  const tonIn=sum(fi.map(x=>x.ton)), tonOut=sum(fo.map(x=>x.ton));
-  const actIn=fi.length?sum(fi.map(x=>x.act))/fi.length:0, actOut=fo.length?sum(fo.map(x=>x.act))/fo.length:0;
-  const tgt=fi.length?fi[0].target:200;
-  const aktifIn=fi.filter(x=>x.ton>0).length, aktifOut=fo.filter(x=>x.ton>0).length;
-  const jamIn=sum(fi.map(x=>x.jam)), jamOut=sum(fo.map(x=>x.jam));
-  const mpIn=fi.length?sum(fi.map(x=>x.mp))/fi.length:0, mpOut=fo.length?sum(fo.map(x=>x.mp))/fo.length:0;
-  const pct=(a,t)=>t?`(${(a/t*100).toFixed(1)}% dari target ${fmt(t)})`:"";
-  document.getElementById("pPeriode").innerHTML=`<div id="periodeInfo" style="margin-bottom:12px">📌 Periode produktivitas: <b>${fmtD(d0)} – ${fmtD(d1)}</b> ${PROD.live?"• 🟢 LIVE Sheets":"• 🟡 Snapshot"}</div>`;
-  document.getElementById("pKpis").innerHTML=`
-  <div class="kpi"><small>Total Tonase IN</small><b>${fmt(Math.round(tonIn))}</b><span>${aktifIn} hari aktif</span></div>
-  <div class="kpi"><small>Total Tonase OUT</small><b>${fmt(Math.round(tonOut))}</b><span>${aktifOut} hari aktif</span></div>
-  <div class="kpi"><small>Rata-rata Actual IN</small><b>${actIn.toFixed(1)}</b><span>${pct(actIn,tgt)}</span></div>
-  <div class="kpi"><small>Rata-rata Actual OUT</small><b>${actOut.toFixed(1)}</b><span>${pct(actOut,tgt)}</span></div>
-  <div class="kpi"><small>Total Jam Kerja IN / OUT</small><b>${fmt(jamIn)} / ${fmt(jamOut)}</b><span>jam dalam periode</span></div>
-  <div class="kpi"><small>Rata-rata Man Power IN / OUT</small><b>${mpIn.toFixed(1)} / ${mpOut.toFixed(1)}</b><span>orang per hari</span></div>`;
-  Object.values(pCharts).forEach(c=>c.destroy());pCharts={};
-  const lab=all.map(t=>fmtD(pDate(t)));
-  pCharts.ton=new Chart(document.getElementById("pTon"),{type:"bar",data:{labels:lab,datasets:[{label:"Tonase IN",data:all.map(t=>(mIn[t]||{ton:0}).ton),backgroundColor:"#22c55e"},{label:"Tonase OUT",data:all.map(t=>(mOut[t]||{ton:0}).ton),backgroundColor:"#38bdf8"}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}}}});
-  pCharts.act=new Chart(document.getElementById("pAct"),{type:"line",data:{labels:lab,datasets:[{label:"Actual IN",data:all.map(t=>(mIn[t]||{act:0}).act),borderColor:"#22c55e",tension:.3},{label:"Actual OUT",data:all.map(t=>(mOut[t]||{act:0}).act),borderColor:"#38bdf8",tension:.3},{label:"Target",data:all.map(()=>tgt),borderColor:"#f59e0b",borderDash:[6,4],pointRadius:0}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}}}});
-  pCharts.mp=new Chart(document.getElementById("pMp"),{type:"bar",data:{labels:lab,datasets:[{label:"MP IN",data:all.map(t=>(mIn[t]||{mp:0}).mp),backgroundColor:"#22c55e"},{label:"MP OUT",data:all.map(t=>(mOut[t]||{mp:0}).mp),backgroundColor:"#38bdf8"}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}}}});
-  let h=`<tr><th>Tanggal</th><th class="n">Ton IN</th><th class="n">Ton OUT</th><th class="n">Actual IN</th><th class="n">Actual OUT</th><th class="n">MP IN/OUT</th></tr>`;
-  all.forEach(t=>{const a=mIn[t]||{},b=mOut[t]||{};h+=`<tr><td><b>${t}</b></td><td class="n">${fmt(Math.round(a.ton||0))}</td><td class="n">${fmt(Math.round(b.ton||0))}</td><td class="n" style="color:${(a.act||0)>=tgt?"#4ade80":"#f87171"}">${(a.act||0).toFixed(2)}</td><td class="n" style="color:${(b.act||0)>=tgt?"#4ade80":"#f87171"}">${(b.act||0).toFixed(2)}</td><td class="n">${fmt(a.mp||0)}/${fmt(b.mp||0)}</td></tr>`;});
-  document.getElementById("pTable").innerHTML=h;
-  document.getElementById("pTonTitle").textContent=`📦 Tren Tonase Harian IN vs OUT (${fmtD(d0)} – ${fmtD(d1)})`;
-  document.getElementById("pActTitle").textContent=`🎯 Produktivitas Harian vs Target ${fmt(tgt)} (${fmtD(d0)} – ${fmtD(d1)})`;
-}
-document.getElementById("btnPTampil").onclick=()=>{
-  const d=document.getElementById("pDari").value, s=document.getElementById("pSampai").value;
-  if(!d||!s){alert("Isi tanggal Dari dan Sampai dulu.");return;}
-  if(d>s){alert("Tanggal Dari tidak boleh lebih besar dari Sampai.");return;}
-  PRANGE={dari:d,sampai:s}; renderProd();
-};
-document.getElementById("btnPReset").onclick=()=>{
-  document.getElementById("pDari").value="2026-10-01";document.getElementById("pSampai").value="2026-10-30";
-  PRANGE={dari:"2026-10-01",sampai:"2026-10-30"}; renderProd();
-};
-async function loadProdLive(){
-  const st=document.getElementById("status");st.textContent="⏳ Mengunduh data produktivitas…";
-  try{
-    const [ti,to]=await Promise.all([PROD_IN_GID,PROD_OUT_GID].map(g=>fetch(`https://docs.google.com/spreadsheets/d/${PROD_SHEET}/export?format=csv&gid=${g}`).then(r=>{if(!r.ok)throw 0;return r.text();})));
-    PROD={inRec:pRec(parseCSV(ti).slice(1)),outRec:pRec(parseCSV(to).slice(1)),live:true};
-    const ds=[...PROD.inRec,...PROD.outRec].map(x=>x.tgl).filter((v,i,a)=>a.indexOf(v)===i).sort((a,b)=>pDate(a)-pDate(b));
-    if(ds.length){const iso=d=>{const x=pDate(d);return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;};document.getElementById("pDari").value=iso(ds[0]);document.getElementById("pSampai").value=iso(ds[ds.length-1]);PRANGE={dari:iso(ds[0]),sampai:iso(ds[ds.length-1])};}
-    st.textContent=`🟢 Produktivitas LIVE update ${new Date().toLocaleString("id-ID")}`;
-  }catch(e){st.textContent="⚠ Gagal fetch produktivitas (kemungkinan CORS). Snapshot tetap tampil.";}
-  renderProd();
-}
-document.getElementById("btnPRefresh").onclick=loadProdLive;
-
-// ===== ADJUSTMENT (sheet Data) =====
-const ADJ_SHEET="1wfLawXy4WNH8B3W7Guv5WlVQLuiyC85MdLqf7dchZlA", ADJ_GID="259029579";
-let ADJ=(typeof ADJDATA!=="undefined")?ADJDATA:{months:[],akunBulan:{},tipeBulan:{},tipeGudang:{},akunGudangBulan:{},tipeGudangBulan:{},totals:{n:0,biaya:0,qty:0}};
+// ===== ADJUSTMENT =====
+let ADJ=Object.assign({live:false,totals:{n:0,biaya:0,qty:0}},NEWDATA.adj);
 let ARANGE={bulan:"all", metrik:"biaya", gudang:"all"};
 let aCharts={};
-const fmtRp=n=>"Rp "+Number(Math.round(n||0)).toLocaleString("id-ID");
 const AMON={January:"Jan",February:"Feb",March:"Mar",April:"Apr",May:"Mei",June:"Jun",July:"Jul",August:"Agu",September:"Sep",October:"Okt",November:"Nov",December:"Des"};
 function aVal(e,m){if(!e)return 0;return m==="biaya"?e[1]:(m==="qty"?e[2]:e[0]);}
 function aFmt(v,m){return m==="biaya"?fmtRp(v):(m==="qty"?fmt(Math.round(v)):fmt(v));}
 function adjKeys(map,part){const s=new Set();for(const k of Object.keys(map)){const[a,b]=k.split("||");if(part===0)s.add(a);else s.add(b);}return[...s];}
 function renderAdj(){
   const mSel=document.getElementById("aBulan");
-  const months=(ADJ.months&&ADJ.months.length)?ADJ.months:["January","February","March","April","May","June","July","August","September"];
-  if(mSel.options.length<=1){months.forEach(m=>{const o=document.createElement("option");o.value=m;o.textContent=(AMON[m]||m)+" 2026";mSel.appendChild(o);});}
+  const months=(ADJ.months&&ADJ.months.length)?ADJ.months:["January","February","March","April","May","June","July","August","September","October"];
+  if(mSel.options.length<=1){months.forEach(m=>{const o=document.createElement("option");o.value=m;o.textContent=(AMON[m]||m);mSel.appendChild(o);});}
   mSel.value=ARANGE.bulan; document.getElementById("aMetrik").value=ARANGE.metrik;
   const B=ARANGE.bulan, M=ARANGE.metrik, G=ARANGE.gudang, isAll=(B==="all"), gAll=(G==="all");
   const gSel=document.getElementById("aGudang");
   const AGB=ADJ.akunGudangBulan||{}, TGB3=ADJ.tipeGudangBulan||{};
   if(gSel.options.length<=1){
-    const gl=adjKeys(ADJ.tipeGudang,1).sort((a,b)=>{
-      const va=tipes0(b)-tipes0(a); return va;});
-    function tipes0(g){return Object.keys(ADJ.tipeGudang).filter(k=>k.split("||")[1]===g).reduce((s,k)=>s+ADJ.tipeGudang[k][1],0);}
-    gl.forEach(g=>{const o=document.createElement("option");o.value=g;o.textContent=g;gSel.appendChild(o);});
+    const cnt={}; Object.keys(ADJ.tipeGudang).forEach(k=>{const g=k.split("||")[1];cnt[g]=(cnt[g]||0)+ADJ.tipeGudang[k][1];});
+    Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).forEach(g=>{const o=document.createElement("option");o.value=g;o.textContent=g;gSel.appendChild(o);});
   }
   gSel.value=ARANGE.gudang;
-  // peta 2D yang sudah memperhitungkan filter gudang (tetap format [n,biaya,qty])
   const fAkunBulan={}, fTipeBulan={};
   adjKeys(ADJ.akunBulan,0).forEach(a=>months.forEach(m=>{fAkunBulan[a+"||"+m]=gAll?ADJ.akunBulan[a+"||"+m]:AGB[a+"||"+G+"||"+m];}));
   adjKeys(ADJ.tipeBulan,0).forEach(t=>months.forEach(m=>{fTipeBulan[t+"||"+m]=gAll?ADJ.tipeBulan[t+"||"+m]:TGB3[t+"||"+G+"||"+m];}));
-  const mLab=(isAll?"Semua Bulan":((AMON[B]||B)+" 2026"))+(gAll?"":(" • "+G));
+  const mLab=(isAll?"Semua Bulan":(AMON[B]||B))+(gAll?"":(" • "+G));
   const mName=M==="biaya"?"Total Biaya":(M==="qty"?"Kuantitas":"Transaksi");
-  document.getElementById("aPeriode").innerHTML=`<div id="periodeInfo" style="margin-bottom:12px">📌 Adjustment: <b>${mLab}</b> • metrik <b>${mName}</b> • ${ADJ.live?"🟢 LIVE Sheets":"🟡 Snapshot"}</div>`;
-  // agregat sesuai filter
+  document.getElementById("aPeriode").innerHTML=`<div class="pinfo">📌 Adjustment: <b>${mLab}</b> • metrik <b>${mName}</b> • ${ADJ.live?"🟢 LIVE Sheets":"🟡 Snapshot"}</div>`;
   const agg=(map,keys,part)=>{const o={};keys.forEach(k=>o[k]=0);for(const kk of Object.keys(map)){const[a,b]=kk.split("||");const dim=part===0?a:b, oth=part===0?b:a;if(!isAll&&oth!==B)continue;if(o[dim]===undefined)o[dim]=0;o[dim]+=aVal(map[kk],M);}return o;};
   const akuns=adjKeys(ADJ.akunBulan,0).sort(), tipes=adjKeys(ADJ.tipeBulan,0).sort();
   const gudKeys=adjKeys(ADJ.tipeGudang,1);
-  const sumBulan=B; // bulan aktif
   const byAkun=agg(fAkunBulan,akuns,0), byTipe=agg(fTipeBulan,tipes,0);
   const totV=Object.values(byAkun).reduce((s,v)=>s+v,0);
   const topAkun=Object.entries(byAkun).sort((a,b)=>b[1]-a[1])[0]||["—",0];
   const topTipe=Object.entries(byTipe).sort((a,b)=>b[1]-a[1])[0]||["—",0];
-  const nTr=isAll?Object.keys(fTipeBulan).reduce((s,k)=>s+((fTipeBulan[k]||[0])[0]),0):Object.keys(fTipeBulan).filter(k=>k.split("||")[1]===B).reduce((s,k)=>s+((fTipeBulan[k]||[0])[0]),0);
+  const nTr=Object.keys(fTipeBulan).filter(k=>isAll||k.split("||")[1]===B).reduce((s,k)=>s+((fTipeBulan[k]||[0])[0]),0);
   document.getElementById("aKpis").innerHTML=`
   <div class="kpi"><small>${mName} (${mLab})</small><b>${aFmt(totV,M)}</b><span>${fmt(nTr)} transaksi</span></div>
   <div class="kpi"><small>Akun Terbesar</small><b style="font-size:15px">${topAkun[0]}</b><span>${aFmt(topAkun[1],M)}</span></div>
   <div class="kpi"><small>Tipe Dominan</small><b>${topTipe[0]}</b><span>${aFmt(topTipe[1],M)}</span></div>
   <div class="kpi"><small>Total Transaksi Data</small><b>${fmt(ADJ.totals.n)}</b><span>${fmtRp(ADJ.totals.biaya)} keseluruhan</span></div>`;
-  // charts
   Object.values(aCharts).forEach(c=>c.destroy());aCharts={};
-  const pal=["#22c55e","#38bdf8","#f59e0b","#a78bfa","#f472b6","#facc15","#34d399","#fb7185","#2dd4bf","#c084fc","#94a3b8","#f97316"];
   const mAxis=isAll?months:[B];
-  const dsAkun=akuns.map((a,i)=>({label:a,data:mAxis.map(m=>aVal(fAkunBulan[a+"||"+m],M)),backgroundColor:pal[i%pal.length],stack:"s"}));
-  aCharts.akun=new Chart(document.getElementById("aAkun"),{type:"bar",data:{labels:mAxis.map(m=>AMON[m]||m),datasets:dsAkun},options:{plugins:{legend:{labels:{color:"#e2e8f0",boxWidth:12}}},scales:{x:{stacked:true,ticks:{color:"#94a3b8"}},y:{stacked:true,ticks:{color:"#94a3b8"}}}}});
-  const dsTipe=tipes.map((t,i)=>({label:t,data:mAxis.map(m=>aVal(fTipeBulan[t+"||"+m],M)),backgroundColor:pal[(i+3)%pal.length]}));
-  aCharts.tipe=new Chart(document.getElementById("aTipe"),{type:"bar",data:{labels:mAxis.map(m=>AMON[m]||m),datasets:dsTipe},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}}}});
-  // tipe per gudang — exact via pivot 3D, fallback proporsional bila 3D belum tersedia
+  aCharts.akun=new Chart(document.getElementById("aAkun"),{type:"bar",data:{labels:mAxis.map(m=>AMON[m]||m),datasets:akuns.map((a,i)=>({label:a,data:mAxis.map(m=>aVal(fAkunBulan[a+"||"+m],M)),backgroundColor:PAL[i%PAL.length],stack:"s"}))},options:{plugins:{legend:{labels:{color:"#e2e8f0",boxWidth:12}}},scales:{x:{stacked:true,ticks:{color:"#94a3b8"}},y:{stacked:true,ticks:{color:"#94a3b8"}}}}});
+  aCharts.tipe=new Chart(document.getElementById("aTipe"),{type:"bar",data:{labels:mAxis.map(m=>AMON[m]||m),datasets:tipes.map((t,i)=>({label:t,data:mAxis.map(m=>aVal(fTipeBulan[t+"||"+m],M)),backgroundColor:PAL[(i+3)%PAL.length]}))},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}}}});
   const has3D=Object.keys(TGB3).length>0;
   const gCellExact=(t,g)=>{
     if(gAll&&isAll) return aVal(ADJ.tipeGudang[t+"||"+g],M);
@@ -445,7 +264,6 @@ function renderAdj(){
   const gList=gAll?gudKeys:[G];
   let gTop, gExact=true;
   if(gAll&&!isAll&&!has3D){
-    // fallback proporsional (snapshot lama / tanpa 3D)
     const wT={}; tipes.forEach(t=>{const e=fTipeBulan[t+"||"+B];const tot=months.reduce((s,m)=>s+aVal(fTipeBulan[t+"||"+m],M),0);wT[t]=tot?aVal(e,M)/tot:0;});
     const gv={}; gList.forEach(g=>{gv[g]=tipes.reduce((s,t)=>s+aVal(ADJ.tipeGudang[t+"||"+g],M)*wT[t],0);});
     gTop=Object.entries(gv).sort((a,b)=>b[1]-a[1]).slice(0,12); gExact=false;
@@ -454,181 +272,430 @@ function renderAdj(){
     gTop=gAll?Object.entries(gv).sort((a,b)=>b[1]-a[1]).slice(0,12):[[G,gv[G]||0]];
   }
   aCharts.gud=new Chart(document.getElementById("aGud"),{type:"bar",data:{labels:gTop.map(x=>x[0].slice(0,26)),datasets:[{data:gTop.map(x=>Math.round(x[1])),backgroundColor:"#a78bfa"}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#e2e8f0",font:{size:11}}}}}});
-  const gCell=(t,g)=>{
-    const v=gCellExact(t,g);
-    if(v>=0) return v;
+  const gCell=(t,g)=>{const v=gCellExact(t,g);if(v>=0)return v;
     const e=fTipeBulan[t+"||"+B];const tot=months.reduce((s,m)=>s+aVal(fTipeBulan[t+"||"+m],M),0);const w=tot?aVal(e,M)/tot:0;
     return aVal(ADJ.tipeGudang[t+"||"+g],M)*w;};
   let hg=`<tr><th>Gudang</th>${tipes.map(t=>`<th class="n">${t}</th>`).join("")}<th class="n">Total</th></tr>`;
   gTop.forEach(([g])=>{let rowT=0;hg+=`<tr><td><b>${g}</b></td>`;tipes.forEach(t=>{const v=gCell(t,g);rowT+=v;hg+=`<td class="n">${aFmt(v,M)}</td>`;});hg+=`<td class="n"><b>${aFmt(rowT,M)}</b></td></tr>`;});
-  document.getElementById("aGudTable").innerHTML=hg+`<p style="color:#94a3b8;font-size:12px">${gAll?"Top 12 gudang":"Gudang terpilih"} • ${mLab} • ${gExact?"angka tepat":"estimasi proporsional — klik Refresh Data untuk angka pasti"} • metrik ${mName}</p>`;
-  // pivot tables
+  document.getElementById("aGudTable").innerHTML=hg+`<p style="color:#94a3b8;font-size:12px">${gAll?"Top 12 gudang":"Gudang terpilih"} • ${mLab} • ${gExact?"angka tepat":"estimasi proporsional"} • metrik ${mName}</p>`;
   const piv=(map,rows,cols,title)=>{let h=`<tr><th>${title}</th>${cols.map(c=>`<th class="n">${AMON[c]||c}</th>`).join("")}<th class="n">Total</th></tr>`;const cT={};cols.forEach(c=>cT[c]=0);let gT=0;rows.forEach(r=>{let rT=0;h+=`<tr><td><b>${r}</b></td>`;cols.forEach(c=>{const v=aVal(map[r+"||"+c],M);rT+=v;cT[c]+=v;h+=`<td class="n">${aFmt(v,M)}</td>`;});gT+=rT;h+=`<td class="n"><b>${aFmt(rT,M)}</b></td></tr>`;});h+=`<tr><td><b>Total</b></td>${cols.map(c=>`<td class="n"><b>${aFmt(cT[c],M)}</b></td>`).join("")}<td class="n"><b>${aFmt(gT,M)}</b></td></tr>`;return h;};
   const showMonths=isAll?months:[B];
-  const akunRows=akuns.sort((a,b)=>showMonths.reduce((s,m)=>s+aVal(fAkunBulan[b+"||"+m],M),0)-showMonths.reduce((s,m)=>s+aVal(fAkunBulan[a+"||"+m],M),0));
-  const tipeRows=tipes.sort((a,b)=>showMonths.reduce((s,m)=>s+aVal(fTipeBulan[b+"||"+m],M),0)-showMonths.reduce((s,m)=>s+aVal(fTipeBulan[a+"||"+m],M),0));
+  const akunRows=[...akuns].sort((a,b)=>showMonths.reduce((s,m)=>s+aVal(fAkunBulan[b+"||"+m],M),0)-showMonths.reduce((s,m)=>s+aVal(fAkunBulan[a+"||"+m],M),0));
+  const tipeRows=[...tipes].sort((a,b)=>showMonths.reduce((s,m)=>s+aVal(fTipeBulan[b+"||"+m],M),0)-showMonths.reduce((s,m)=>s+aVal(fTipeBulan[a+"||"+m],M),0));
   document.getElementById("aPivotAkun").innerHTML=piv(fAkunBulan,akunRows,showMonths,"Nama Akun");
   document.getElementById("aPivotTipe").innerHTML=piv(fTipeBulan,tipeRows,showMonths,"Tipe");
   document.getElementById("aAkunTitle").textContent=`🧾 Akun Penyesuaian per Bulan (${mName}, ${mLab})`;
   document.getElementById("aTipeTitle").textContent=`🔀 Tipe Penyesuaian per Bulan (${mName}, ${mLab})`;
   document.getElementById("aGudTitle").textContent=`🏬 Tipe Penyesuaian per Gudang (${mName}, ${mLab})`;
-  document.getElementById("aPivotAkunTitle").textContent=`📋 Pivot Akun × Bulan (${mName})`;
-  document.getElementById("aPivotTipeTitle").textContent=`📋 Pivot Tipe × Bulan (${mName})`;
 }
 document.getElementById("btnATampil").onclick=()=>{ARANGE={bulan:document.getElementById("aBulan").value,metrik:document.getElementById("aMetrik").value,gudang:document.getElementById("aGudang").value};renderAdj();};
 document.getElementById("btnAReset").onclick=()=>{document.getElementById("aBulan").value="all";document.getElementById("aMetrik").value="biaya";document.getElementById("aGudang").value="all";ARANGE={bulan:"all",metrik:"biaya",gudang:"all"};renderAdj();};
 async function loadAdjLive(){
-  const st=document.getElementById("status");st.textContent="⏳ Mengunduh data adjustment (~2MB)…";
+  const st=document.getElementById("status");st.textContent="⏳ Mengunduh data adjustment…";
   try{
-    const t=await fetch(`https://docs.google.com/spreadsheets/d/${ADJ_SHEET}/export?format=csv&gid=${ADJ_GID}`).then(r=>{if(!r.ok)throw 0;return r.text();});
-    const rows=parseCSV(t);let hI=rows.findIndex(r=>r.join("|").includes("Nomor #"));if(hI<0)hI=4;
+    const t=await fetch(`https://docs.google.com/spreadsheets/d/${NEWSHEET}/export?format=csv&gid=${GIDS.adj}`).then(r=>{if(!r.ok)throw 0;return r.text();});
+    const rows=parseCSV(t);let hI=rows.findIndex(r=>r.join("|").includes("Nomor #"));if(hI<0)hI=8;
     const aB={},tB={},tG={},tGB={},aGB={};let n=0,bb=0,qq=0;
-    const an=s=>{if(!s)return 0;const x=parseFloat(String(s).replace(/[^0-9.\-]/g,""));return isNaN(x)?0:x;};
     for(const r of rows.slice(hI+1)){while(r.length<14)r.push("");if(!r[1]&&!r[2]&&!r[3])continue;
-      const qty=an(r[4]),tp=((r[6]||"").trim()||"-"),ak=((r[7]||"").trim()||"-"),by=an(r[8]),gd=((r[9]||"").trim()||"-"),bl=((r[11]||"").trim()||"-");
+      const qty=numId(r[4]),tp=((r[6]||"").trim()||"-"),ak=((r[7]||"").trim()||"-"),by=numId(r[8]),gd=((r[9]||"").trim()||"-"),bl=((r[11]||"").trim()||"-");
       n++;bb+=by;qq+=qty;
       const b=(m,k)=>{const e=m[k]=m[k]||[0,0,0];e[0]++;e[1]+=by;e[2]+=qty;};
       b(aB,ak+"||"+bl);b(tB,tp+"||"+bl);b(tG,tp+"||"+gd);b(tGB,tp+"||"+gd+"||"+bl);b(aGB,ak+"||"+gd+"||"+bl);}
     const MO=["January","February","March","April","May","June","July","August","September","October","November","December"];
     ADJ={months:MO.filter(m=>Object.keys(aB).some(k=>k.split("||")[1]===m)),akunBulan:aB,tipeBulan:tB,tipeGudang:tG,tipeGudangBulan:tGB,akunGudangBulan:aGB,totals:{n,biaya:Math.round(bb),qty:Math.round(qq*100)/100},live:true};
-    try{window.ADJDATA={months:ADJ.months,akunBulan:aB,tipeBulan:tB,tipeGudang:tG,tipeGudangBulan:tGB,akunGudangBulan:aGB,totals:ADJ.totals};}catch(e){}
     st.textContent=`🟢 Adjustment LIVE: ${fmt(n)} transaksi • update ${new Date().toLocaleString("id-ID")}`;
   }catch(e){st.textContent="⚠ Gagal fetch adjustment (kemungkinan CORS). Snapshot tetap tampil.";}
   renderAdj();
 }
 document.getElementById("btnARefresh").onclick=loadAdjLive;
 
-// ===== REKAP PENERIMAAN =====
-const REC_SHEET="10AXX9Orwrsr4Md4KOeau96CKaJvEO4GnUdO2oBJy--Y";
-const REC_TABS=[["Okt 2025","1715703598"],["Nov 2025","38221902"],["Jan 2026","0"],["Feb 2026","1219498035"],["Mar 2026","1721403908"],["Apr 2026","1474806557"],["May 2026","1120537985"],["Juni 2026","670542266"],["Juli 2026","1501441106"],["Agust 2026","383370053"],["Sep 2026","1506529845"],["Okt 2026","237142614"]];
-let REC=(typeof RECDATA!=="undefined")?Object.assign({live:false},RECDATA):{months:[],perMonth:{},perItem:{},perVendor:{},perDate:{},perMonthItem:{},perMonthDate:{},perMonthVendor:{},live:false};
-let RRANGE={bulan:"all",cari:""};
-let rCharts={};
-function rParseDate(s){const m=String(s||"").trim().match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);if(!m)return null;let y=+m[3];if(y<100)y+=2000;return new Date(y,+m[2]-1,+m[1]);}
-function renderRec(){
-  const months=REC.months||[], pm=REC.perMonth||{};
-  const bSel=document.getElementById("rBulan");
-  if(bSel.options.length<=1){months.forEach(m=>{const o=document.createElement("option");o.value=m;o.textContent=m;if(bSel) bSel.appendChild(o);});}
-  bSel.value=RRANGE.bulan;
-  const B=RRANGE.bulan, q=RRANGE.cari, isAll=(B==="all");
-  const mLab=isAll?"Semua Bulan (Okt 2025 – Okt 2026)":B;
-  document.getElementById("rPeriode").innerHTML=`<div id="periodeInfo" style="margin-bottom:12px">📌 Penerimaan: <b>${mLab}</b> • ${REC.live?"🟢 LIVE Sheets":"🟡 Snapshot"} • <span style="color:#94a3b8">satuan campur (Pack/Pcs/Bks/Kg) sesuai sheet</span></div>`;
-  // agregat periode
-  let totPO=0, totTR=0, totN=0, totDays=0;
-  if(isAll){months.forEach(m=>{const e=pm[m]||{po:0,terima:0,n:0,days:0};totPO+=e.po;totTR+=e.terima;totN+=e.n;totDays+=e.days;});}
-  else{const e=pm[B]||{po:0,terima:0,n:0,days:0};totPO=e.po;totTR=e.terima;totN=e.n;totDays=e.days;}
-  const sel=totTR-totPO, selP=totPO?(sel/totPO*100):0;
-  // item & vendor sesuai filter + search
-  let items=[];
-  if(isAll){items=Object.entries(REC.perItem||{}).map(([nm,v])=>({nm,po:v[0],tr:v[1],n:v[2],sat:v[3]||""}));}
-  else{for(const k of Object.keys(REC.perMonthItem||{})){const p=k.split("||");if(p[0]!==B)continue;const v=REC.perMonthItem[k];const g=(REC.perItem||{})[p[1]];items.push({nm:p[1],po:v[0],tr:v[1],n:v[2],sat:g?g[3]:""});}}
-  items=items.filter(x=>x.nm.toLowerCase().includes(q)).sort((a,b)=>b.tr-a.tr);
-  let vens=[];
-  if(isAll){vens=Object.entries(REC.perVendor||{}).map(([nm,v])=>({nm,po:v[0],tr:v[1],n:v[2]}));}
-  else{for(const k of Object.keys(REC.perMonthVendor||{})){const p=k.split("||");if(p[0]!==B)continue;const v=REC.perMonthVendor[k];vens.push({nm:p[1],po:v[0],tr:v[1],n:v[2]});}}
-  vens=vens.filter(x=>x.nm.toLowerCase().includes(q)).sort((a,b)=>b.tr-a.tr);
-  const topItem=items[0]||{nm:"—",tr:0}, topVen=vens.filter(v=>v.nm!=="-")[0]||vens[0]||{nm:"—",tr:0};
-  document.getElementById("rKpis").innerHTML=`
-  <div class="kpi"><small>Qty Diterima (${mLab})</small><b>${fmt(Math.round(totTR))}</b><span>dari PO ${fmt(Math.round(totPO))}</span></div>
-  <div class="kpi"><small>Selisih (Diterima − PO)</small><b style="color:${sel<0?"#f87171":"#4ade80"}">${(sel>0?"+":"")+fmt(Math.round(sel))}</b><span>${selP.toFixed(2)}% ${sel<0?"kurang":"lebih/cukup"}</span></div>
-  <div class="kpi"><small>Transaksi Penerimaan</small><b>${fmt(totN)}</b><span>${fmt(totDays)} hari aktif</span></div>
-  <div class="kpi"><small>Paling Banyak Diterima</small><b style="font-size:15px">${topItem.nm}</b><span>${fmt(Math.round(topItem.tr||0))} • ${(totTR?(topItem.tr/totTR*100):0).toFixed(1)}% dari periode</span></div>
-  <div class="kpi"><small>Vendor Teratas</small><b style="font-size:15px">${topVen.nm}</b><span>${fmt(Math.round(topVen.tr||0))}</span></div>
-  <div class="kpi"><small>Variasi Item</small><b>${fmt(isAll?Object.keys(REC.perItem||{}).length:items.length)}</b><span>${fmt(isAll?Object.keys(REC.perVendor||{}).length:vens.length)} vendor tercatat</span></div>
-  <div class="kpi"><small>Rata-rata Harian</small><b>${fmt(totDays?Math.round(totTR/totDays):0)}/hari</b><span>${fmt(totN?Math.round(totN/Math.max(totDays,1)):0)} transaksi/hari</span></div>
-  <div class="kpi"><small>Status Data</small><b style="font-size:15px">${REC.live?"🟢 LIVE Sheets":"🟡 Snapshot"}</b><span>klik Refresh Data untuk update</span></div>`;
-  Object.values(rCharts).forEach(c=>c.destroy());rCharts={};
-  rCharts.trend=new Chart(document.getElementById("rTrend"),{type:"bar",data:{labels:months,datasets:[{label:"Qty PO",data:months.map(m=>(pm[m]||{po:0}).po),backgroundColor:"#475569"},{label:"Qty Diterima",data:months.map(m=>(pm[m]||{terima:0}).terima),backgroundColor:months.map(m=>isAll?"#38bdf8":(m===B?"#22c55e":"#475569"))}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8",font:{size:10}}},y:{ticks:{color:"#94a3b8"}}}}});
-  // tren harian
-  let dKeys=[], dVals=[];
-  if(isAll){dKeys=Object.keys(REC.perDate||{}).sort((a,b)=>rParseDate(a)-rParseDate(b));dVals=dKeys.map(k=>REC.perDate[k]);}
-  else{const pre=B+"||";dKeys=Object.keys(REC.perMonthDate||{}).filter(k=>k.startsWith(pre)).map(k=>k.slice(pre.length)).sort((a,b)=>rParseDate(a)-rParseDate(b));dVals=dKeys.map(k=>REC.perMonthDate[B+"||"+k]);}
-  const dLab=dKeys.map(k=>{const d=rParseDate(k);return d?d.getDate()+"/"+(d.getMonth()+1):k;});
-  rCharts.daily=new Chart(document.getElementById("rDaily"),{type:"line",data:{labels:dLab,datasets:[{label:"Qty Diterima",data:dVals,borderColor:"#22c55e",pointRadius:isAll?0:3,tension:.25}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8",maxTicksLimit:15}},y:{ticks:{color:"#94a3b8"}}}}});
-  const ti=items.slice(0,10);
-  rCharts.item=new Chart(document.getElementById("rItem"),{type:"bar",data:{labels:ti.map(x=>x.nm.length>26?x.nm.slice(0,26)+"…":x.nm),datasets:[{data:ti.map(x=>Math.round(x.tr)),backgroundColor:"#22c55e"}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#e2e8f0",font:{size:11}}}}}});
-  const tv=vens.slice(0,10);
-  rCharts.ven=new Chart(document.getElementById("rVen"),{type:"bar",data:{labels:tv.map(x=>x.nm.length>24?x.nm.slice(0,24)+"…":x.nm),datasets:[{data:tv.map(x=>Math.round(x.tr)),backgroundColor:"#a78bfa"}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#e2e8f0",font:{size:11}}}}}});
-  document.getElementById("rTrendTitle").textContent=`📦 Penerimaan per Bulan — PO vs Diterima (${mLab})`;
-  document.getElementById("rDailyTitle").textContent=`📈 Tren Harian Qty Diterima (${mLab})`;
-  document.getElementById("rItemTitle").textContent=`🏆 Barang Paling Banyak Diterima (${mLab})`;
-  document.getElementById("rVenTitle").textContent=`🚚 Vendor Teratas (${mLab})`;
-  document.getElementById("rTopTitle").textContent=`📋 Top Barang Diterima (${mLab})`;
-  let h=`<tr><th>Bulan</th><th class="n">Qty PO</th><th class="n">Diterima</th><th class="n">Selisih</th><th class="n">%</th><th class="n">Transaksi</th><th class="n">Hari</th></tr>`;
-  months.forEach(m=>{const e=pm[m]||{po:0,terima:0,n:0,days:0};const s=e.terima-e.po;h+=`<tr class="${(!isAll&&m===B)?"hl":""}"><td><b>${m}</b>${(!isAll&&m===B)?' <span class="badge">aktif</span>':""}</td><td class="n">${fmt(Math.round(e.po))}</td><td class="n">${fmt(Math.round(e.terima))}</td><td class="n" style="color:${s<0?"#f87171":"#4ade80"}">${(s>0?"+":"")+fmt(Math.round(s))}</td><td class="n">${(e.po?(s/e.po*100):0).toFixed(2)}%</td><td class="n">${fmt(e.n)}</td><td class="n">${fmt(e.days)}</td></tr>`;});
-  document.getElementById("rBulan").innerHTML=h;
-  let h2=`<tr><th>#</th><th>Nama Barang</th><th>Sat</th><th class="n">Diterima</th><th class="n">Share</th><th class="n">Selisih</th><th class="n">Trx</th></tr>`;
-  items.slice(0,30).forEach((x,i)=>{const s=x.tr-x.po;h2+=`<tr><td>${i+1}</td><td>${x.nm}</td><td>${x.sat||""}</td><td class="n">${fmt(Math.round(x.tr))}</td><td class="n">${(totTR?(x.tr/totTR*100):0).toFixed(2)}%</td><td class="n" style="color:${s<0?"#f87171":"#4ade80"}">${(s>0?"+":"")+fmt(Math.round(s))}</td><td class="n">${fmt(x.n)}</td></tr>`;});
-  document.getElementById("rTop").innerHTML=h2;
-  let h3=`<tr><th>#</th><th>Vendor</th><th class="n">Diterima</th><th class="n">Selisih</th><th class="n">Trx</th></tr>`;
-  vens.slice(0,30).forEach((x,i)=>{const s=x.tr-x.po;h3+=`<tr><td>${i+1}</td><td>${x.nm}${x.nm==="-"?' <span style="color:#94a3b8;font-size:11px">(tab lama tanpa kolom vendor)</span>':""}</td><td class="n">${fmt(Math.round(x.tr))}</td><td class="n" style="color:${s<0?"#f87171":"#4ade80"}">${(s>0?"+":"")+fmt(Math.round(s))}</td><td class="n">${fmt(x.n)}</td></tr>`;});
-  document.getElementById("rVenTable").innerHTML=h3;
-  const sl=[...items].map(x=>({nm:x.nm,sat:x.sat||"",sel:x.po-x.tr,tr:x.tr})).filter(x=>x.sel!==0).sort((a,b)=>b.sel-a.sel).slice(0,30);
-  let h4=`<tr><th>#</th><th>Nama Barang</th><th class="n">Kurang (PO−Terima)</th><th class="n">Diterima</th></tr>`;
-  if(!sl.length)h4+=`<tr><td colspan="4" style="color:#4ade80">Tidak ada selisih pada periode ini 🎉</td></tr>`;
-  sl.forEach((x,i)=>{h4+=`<tr><td>${i+1}</td><td>${x.nm} <span style="color:#94a3b8;font-size:11px">${x.sat}</span></td><td class="n" style="color:${x.sel>0?"#f87171":"#4ade80"}">${x.sel>0?fmt(Math.round(x.sel)):"+"+fmt(Math.round(-x.sel))}</td><td class="n">${fmt(Math.round(x.tr))}</td></tr>`;});
-  document.getElementById("rSelisih").innerHTML=h4;
+// ===== ONTIME DELIVERY =====
+let ONT=Object.assign({live:false,recs:[]},NEWDATA.ontime);
+let ORANGE={bulan:"all",status:"all"};
+let oCharts={};
+const OMON={Jan:"Jan 2026",Feb:"Feb 2026",Mar:"Mar 2026",Apr:"Apr 2026",Mei:"Mei 2026",Jun:"Jun 2026",Jul:"Jul 2026",Agu:"Agu 2026",Sep:"Sep 2026",Okt:"Okt 2026",Nov:"Nov 2026",Des:"Des 2026"};
+const OMONN={Jan:0,Feb:1,Mar:2,Apr:3,Mei:4,Mar2:2,Jun:5,Jul:6,Agu:7,Sep:8,Okt:9,Nov:10,Des:11};
+function oParseTgl(s){const m=String(s||"").match(/(\d{1,2})\s+(\w{3})\s+(\d{2,4})/);if(!m||OMONN[m[2]]===undefined)return null;let y=+m[3];if(y<100)y+=2000;return{d:new Date(y,OMONN[m[2]],+m[1]),key:m[2]+" "+y};}
+function oParseUS(s){const m=String(s||"").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(!m)return null;return new Date(+m[3],+m[1]-1,+m[2]);}
+function oEnrich(r){const p=oParseTgl(r.tgl);const e=oParseUS(r.eta),a=oParseUS(r.actual);
+  const delay=(e&&a)?Math.round((a-e)/864e5):null;return Object.assign({},r,{month:p?p.key:"-",day:p?p.d:null,delay});}
+function renderOntime(){
+  const recs=ONT.recs.map(oEnrich);
+  const months=[...new Set(recs.map(r=>r.month).filter(Boolean))].sort((a,b)=>{const[ma,ya]=a.split(" "),[mb,yb]=b.split(" ");return (ya-yb)||(OMONN[ma]-OMONN[mb]);});
+  const bSel=document.getElementById("oBulan");
+  if(bSel.options.length<=1){months.forEach(m=>{const o=document.createElement("option");o.value=m;o.textContent=(OMON[m.split(" ")[0]]||m).replace("2026","’26").replace("2025","’25")+" "+m.split(" ")[1];bSel.appendChild(o);});}
+  bSel.value=ORANGE.bulan;
+  const sSel=document.getElementById("oStatus");
+  const sts=[...new Set(recs.map(r=>r.status))].sort();
+  if(sSel.options.length<=1){sts.forEach(s=>{const o=document.createElement("option");o.value=s;o.textContent=s==="‐"||s==="-"?"(Tanpa status)":s;sSel.appendChild(o);});}
+  sSel.value=ORANGE.status;
+  const B=ORANGE.bulan, S=ORANGE.status;
+  const f=recs.filter(r=>(B==="all"||r.month===B)&&(S==="all"||r.status===S));
+  const mLab=(B==="all"?"Semua Bulan":B)+(S==="all"?"":" • "+S);
+  document.getElementById("oPeriode").innerHTML=`<div class="pinfo">📌 Ontime Delivery: <b>${mLab}</b> • ${ONT.live?"🟢 LIVE Sheets":"🟡 Snapshot"}</div>`;
+  const tw=f.filter(r=>r.status==="Tepat Waktu").length, dl=f.filter(r=>r.delay!==null&&r.delay>0).length;
+  const op=f.filter(r=>r.status==="On Proses").length, nost=f.filter(r=>r.status==="-").length;
+  const kom=f.filter(r=>/tidak sesuai/i.test(r.komplain)).length;
+  const pct=f.length?tw/f.length*100:0;
+  const eksp=[...new Set(f.map(r=>r.ekspedisi||"-"))];
+  document.getElementById("oKpis").innerHTML=`
+  <div class="kpi"><small>Total Pengiriman</small><b>${fmt(f.length)}</b><span>${mLab}</span></div>
+  <div class="kpi"><small>Tepat Waktu</small><b style="color:#4ade80">${fmt(tw)}</b><span>${pct.toFixed(1)}% ontime rate</span></div>
+  <div class="kpi"><small>Terlambat</small><b style="color:${dl?"#f87171":"#4ade80"}">${fmt(dl)}</b><span>actual &gt; ETA</span></div>
+  <div class="kpi"><small>On Proses</small><b>${fmt(op)}</b><span>${fmt(nost)} tanpa status</span></div>
+  <div class="kpi"><small>Komplain Tidak Sesuai</small><b style="color:${kom?"#f87171":"#4ade80"}">${fmt(kom)}</b><span>dari kolom komplain</span></div>
+  <div class="kpi"><small>Ekspedisi Aktif</small><b>${fmt(eksp.length)}</b><span>dalam periode</span></div>`;
+  Object.values(oCharts).forEach(c=>c.destroy());oCharts={};
+  const bySt={};f.forEach(r=>bySt[r.status]=(bySt[r.status]||0)+1);
+  oCharts.dist=new Chart(document.getElementById("oDist"),{type:"doughnut",data:{labels:Object.keys(bySt),datasets:[{data:Object.values(bySt),backgroundColor:PAL}]},options:{plugins:{legend:{position:"right",labels:{color:"#e2e8f0",boxWidth:12}}}}});
+  const eRows=eksp.map(e=>{const rs=f.filter(r=>(r.ekspedisi||"-")===e);return{e,tw:rs.filter(r=>r.status==="Tepat Waktu").length,oth:rs.length-rs.filter(r=>r.status==="Tepat Waktu").length,n:rs.length};}).sort((a,b)=>b.n-a.n).slice(0,12);
+  oCharts.eksp=new Chart(document.getElementById("oEksp"),{type:"bar",data:{labels:eRows.map(x=>x.e.slice(0,22)),datasets:[{label:"Tepat Waktu",data:eRows.map(x=>x.tw),backgroundColor:"#22c55e",stack:"s"},{label:"Lainnya",data:eRows.map(x=>x.oth),backgroundColor:"#f59e0b",stack:"s"}]},options:{indexAxis:"y",plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{stacked:true,ticks:{color:"#94a3b8"}},y:{stacked:true,ticks:{color:"#e2e8f0",font:{size:11}}}}}});
+  const byDay={};f.forEach(r=>{if(!r.day)return;const k=r.day.toISOString().slice(0,10);byDay[k]=byDay[k]||{n:0,dl:0};byDay[k].n++;if(r.delay>0)byDay[k].dl++;});
+  const dk=Object.keys(byDay).sort();
+  oCharts.trend=new Chart(document.getElementById("oTrend"),{type:"bar",data:{labels:dk.map(k=>k.slice(8)+"/"+k.slice(5,7)),datasets:[{label:"Pengiriman",data:dk.map(k=>byDay[k].n),backgroundColor:"#38bdf8"},{label:"Terlambat",data:dk.map(k=>byDay[k].dl),backgroundColor:"#ef4444"}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8",maxTicksLimit:15}},y:{ticks:{color:"#94a3b8"}}}}});
+  document.getElementById("oDistTitle").textContent=`🍩 Distribusi Status (${mLab})`;
+  document.getElementById("oEkspTitle").textContent=`🚚 Ontime per Ekspedisi (${mLab})`;
+  document.getElementById("oTrendTitle").textContent=`📈 Tren Harian Pengiriman (${mLab})`;
+  document.getElementById("oTableTitle").textContent=`📋 Detail Pengiriman (${mLab})`;
+  let h=`<tr><th>Tgl Kirim</th><th>Outlet</th><th>Ekspedisi</th><th>ETA</th><th>Actual</th><th>±hari</th><th>Status</th><th>Komplain</th></tr>`;
+  f.slice(0,200).forEach(r=>{h+=`<tr><td>${r.tgl}</td><td>${r.outlet}</td><td>${r.ekspedisi}</td><td class="n">${r.eta}</td><td class="n">${r.actual}</td><td class="n" style="color:${r.delay===null?"#94a3b8":(r.delay>0?"#f87171":"#4ade80")}">${r.delay===null?"—":(r.delay>0?"+":"")+r.delay}</td><td>${r.status}</td><td>${r.komplain}</td></tr>`;});
+  document.getElementById("oTable").innerHTML=h+`<p style="color:#94a3b8;font-size:12px">Menampilkan ${Math.min(200,f.length)} dari ${fmt(f.length)} pengiriman</p>`;
+  const dd=f.filter(r=>r.delay!==null&&r.delay>0).sort((a,b)=>b.delay-a.delay).slice(0,30);
+  let h2=`<tr><th>Outlet</th><th>Ekspedisi</th><th class="n">Telat (hari)</th><th>ETA → Actual</th></tr>`;
+  if(!dd.length)h2+=`<tr><td colspan="4" style="color:#4ade80">Nol keterlambatan 🎉</td></tr>`;
+  dd.forEach(r=>{h2+=`<tr><td>${r.outlet}</td><td>${r.ekspedisi}</td><td class="n" style="color:#f87171"><b>+${r.delay}</b></td><td class="n">${r.eta} → ${r.actual}</td></tr>`;});
+  document.getElementById("oDelay").innerHTML=h2;
 }
-document.getElementById("btnRTampil").onclick=()=>{RRANGE={bulan:document.getElementById("rBulan").value,cari:document.getElementById("rCari").value.trim().toLowerCase()};renderRec();};
-document.getElementById("btnRReset").onclick=()=>{document.getElementById("rBulan").value="all";document.getElementById("rCari").value="";RRANGE={bulan:"all",cari:""};renderRec();};
-document.getElementById("rCari").addEventListener("keydown",e=>{if(e.key==="Enter")document.getElementById("btnRTampil").click();});
-function recFindTables(rows){
-  const tables=[], usedT=new Set(), usedR=new Set();
-  const lim=Math.min(8,rows.length);
-  for(let ri=0;ri<lim;ri++){
-    const low=rows[ri].map(c=>(c||"").trim().toLowerCase());
-    for(let ci=0;ci<low.length;ci++){
-      if(low[ci]!=="nama barang")continue;
-      let tgl=-1;
-      for(let j=ci-1;j>=Math.max(0,ci-7);j--){if(low[j]==="tanggal"){tgl=j;break;}}
-      if(tgl<0||(ci-tgl)>5)continue;
-      let terima=-1;
-      for(let j=ci+1;j<Math.min(low.length,ci+8);j++){if(low[j]==="qty diterima"||low[j]==="qty fisik"){terima=j;break;}}
-      if(terima<0||usedT.has(tgl)||usedR.has(terima))continue;
-      const fwd=(names,lo,hi)=>{for(let j=lo;j<Math.min(low.length,hi);j++){if(names.includes(low[j]))return j;}return -1;};
-      tables.push({row:ri,tgl,nama:ci,vendor:fwd(["vendor","nama vendor","supplier"],ci+1,terima+1),po:fwd(["qty po"],ci+1,terima+1),terima,satuan:fwd(["satuan"],terima+1,terima+4)});
-      usedT.add(tgl);usedR.add(terima);
-    }
-  }
-  return tables;
-}
-async function loadRecLive(){
-  const st=document.getElementById("status");st.textContent="⏳ Mengunduh 12 tab penerimaan…";
+document.getElementById("btnOTampil").onclick=()=>{ORANGE={bulan:document.getElementById("oBulan").value,status:document.getElementById("oStatus").value};renderOntime();};
+document.getElementById("btnOReset").onclick=()=>{document.getElementById("oBulan").value="all";document.getElementById("oStatus").value="all";ORANGE={bulan:"all",status:"all"};renderOntime();};
+async function loadOntimeLive(){
+  const st=document.getElementById("status");st.textContent="⏳ Mengunduh ontime delivery…";
   try{
-    const rn=s=>{if(!s)return 0;const x=parseFloat(String(s).replace(/[^0-9.\-]/g,""));return isNaN(x)?0:x;};
-    const isD=s=>/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test((s||"").trim());
-    const perMonth={},perItem={},perVendor={},perDate={},perMonthItem={},perMonthDate={},perMonthVendor={};
-    const all=await Promise.all(REC_TABS.map(([label,gid])=>fetch(`https://docs.google.com/spreadsheets/d/${REC_SHEET}/export?format=csv&gid=${gid}`).then(r=>{if(!r.ok)throw 0;return r.text();}).then(t=>({label,rows:parseCSV(t)}))));
-    for(const {label,rows} of all){
-      const m=perMonth[label]=perMonth[label]||{po:0,terima:0,n:0,days:new Set(),items:new Set(),vendors:new Set()};
-      for(const t of recFindTables(rows)){
-        for(let i=t.row+1;i<rows.length;i++){
-          const r=rows[i].concat(Array(40).fill(""));
-          const tg=(r[t.tgl]||"").trim(), nm=(r[t.nama]||"").trim();
-          if(!nm||!isD(tg))continue;
-          const po=t.po>=0?rn(r[t.po]):0, tr=rn(r[t.terima]);
-          const ven=(t.vendor>=0?(r[t.vendor]||"").trim():"")||"-", sat=t.satuan>=0?(r[t.satuan]||"").trim():"";
-          m.po+=po;m.terima+=tr;m.n++;m.days.add(tg);m.items.add(nm);m.vendors.add(ven);
-          const e=perItem[nm]=perItem[nm]||[0,0,0,""];e[0]+=po;e[1]+=tr;e[2]++;
-          const v=perVendor[ven]=perVendor[ven]||[0,0,0];v[0]+=po;v[1]+=tr;v[2]++;
-          perDate[tg]=(perDate[tg]||0)+tr;
-          const mi=perMonthItem[label+"||"+nm]=perMonthItem[label+"||"+nm]||[0,0,0];mi[0]+=po;mi[1]+=tr;mi[2]++;
-          perMonthDate[label+"||"+tg]=(perMonthDate[label+"||"+tg]||0)+tr;
-          const mv=perMonthVendor[label+"||"+ven]=perMonthVendor[label+"||"+ven]||[0,0,0];mv[0]+=po;mv[1]+=tr;mv[2]++;
-          if(sat){e[3]=e[3]||sat;}
-        }
-      }
-      m.days=m.days.size;m.items=m.items.size;m.vendors=m.vendors.size;
-    }
-    REC={months:REC_TABS.map(x=>x[0]),perMonth,perItem,perVendor,perDate,perMonthItem,perMonthDate,perMonthVendor,live:true};
-    try{window.RECDATA={months:REC.months,perMonth,perItem,perVendor,perDate,perMonthItem,perMonthDate,perMonthVendor};}catch(e){}
-    st.textContent=`🟢 Penerimaan LIVE update ${new Date().toLocaleString("id-ID")}`;
-  }catch(e){st.textContent="⚠ Gagal fetch penerimaan (kemungkinan CORS). Snapshot tetap tampil.";}
-  renderRec();
+    const t=await fetch(`https://docs.google.com/spreadsheets/d/${NEWSHEET}/export?format=csv&gid=${GIDS.ontime}`).then(r=>{if(!r.ok)throw 0;return r.text();});
+    const rows=parseCSV(t), recs=[];
+    for(const r of rows.slice(1)){if(!((r[0]||"").trim())||/total/i.test(r[0]||""))continue;
+      recs.push({tgl:(r[0]||"").trim(),outlet:(r[1]||"").trim(),ekspedisi:(r[3]||"").trim(),eta:(r[4]||"").trim(),actual:(r[5]||"").trim(),status:(r[6]||"").trim()||"-",komplain:(r[7]||"").trim()||"-"});}
+    ONT={recs,live:true};
+    st.textContent=`🟢 Ontime LIVE: ${fmt(recs.length)} pengiriman • update ${new Date().toLocaleString("id-ID")}`;
+  }catch(e){st.textContent="⚠ Gagal fetch ontime (kemungkinan CORS). Snapshot tetap tampil.";}
+  renderOntime();
 }
-document.getElementById("btnRRefresh").onclick=loadRecLive;
+document.getElementById("btnORefresh").onclick=loadOntimeLive;
 
-render();
+// ===== STOCK AKURASI =====
+let STK=Object.assign({live:false,month:"",daily:[],items:[]},NEWDATA.stock);
+let SRANGE={cari:""};
+let sCharts={};
+function renderStock(){
+  const q=SRANGE.cari;
+  const items=(STK.items||[]).filter(x=>x[0].toLowerCase().includes(q));
+  const totSO=items.reduce((s,x)=>s+x[2],0), totAcc=items.reduce((s,x)=>s+x[3],0), totSel=items.reduce((s,x)=>s+x[4],0);
+  const acc=totSO?100-totSel/totSO*100:100;
+  const bad=items.filter(x=>x[4]>0).length;
+  const days=(STK.daily||[]).filter(d=>d.so||d.acc||d.sel).length;
+  document.getElementById("sPeriode").innerHTML=`<div class="pinfo">📌 Stock Opname vs Accurate: <b>${STK.month||"-"}</b> • ${STK.live?"🟢 LIVE Sheets":"🟡 Snapshot"}</div>`;
+  document.getElementById("sKpis").innerHTML=`
+  <div class="kpi"><small>Akurasi Stok</small><b style="color:${acc>=95?"#4ade80":(acc>=85?"#facc15":"#f87171")}">${acc.toFixed(2)}%</b><span>1 − Σ|selisih| ÷ ΣSO</span></div>
+  <div class="kpi"><small>Total SO / Accurate</small><b>${fmt(totSO)} / ${fmt(totAcc)}</b><span>selisih abs ${fmt(totSel)}</span></div>
+  <div class="kpi"><small>Item Berselisih</small><b style="color:${bad?"#f87171":"#4ade80"}">${fmt(bad)}</b><span>dari ${fmt(items.length)} item tampil</span></div>
+  <div class="kpi"><small>Hari Tercatat</small><b>${fmt(days)}</b><span>dalam sebulan</span></div>`;
+  Object.values(sCharts).forEach(c=>c.destroy());sCharts={};
+  const dd=(STK.daily||[]).map((d,i)=>({i:i+1,acc:d.so?100-Math.abs(d.so-d.acc)/d.so*100:(d.acc?0:100),sel:Math.abs(d.so-d.acc)}));
+  sCharts.acc=new Chart(document.getElementById("sAcc"),{type:"line",data:{labels:dd.map(d=>d.i),datasets:[{label:"Akurasi %",data:dd.map(d=>+d.acc.toFixed(1)),borderColor:"#22c55e",tension:.3},{label:"Target 100%",data:dd.map(()=>100),borderColor:"#f59e0b",borderDash:[6,4],pointRadius:0}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{min:80,max:100,ticks:{color:"#94a3b8"}}}}});
+  sCharts.sel=new Chart(document.getElementById("sSel"),{type:"bar",data:{labels:dd.map(d=>d.i),datasets:[{label:"|SO−Accurate|",data:dd.map(d=>d.sel),backgroundColor:"#38bdf8"}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}}}});
+  const top=[...items].sort((a,b)=>b[4]-a[4]).slice(0,15);
+  sCharts.top=new Chart(document.getElementById("sTop"),{type:"bar",data:{labels:top.map(x=>x[0].length>28?x[0].slice(0,28)+"…":x[0]),datasets:[{data:top.map(x=>x[4]),backgroundColor:"#f59e0b"}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#e2e8f0",font:{size:11}}}}}});
+  document.getElementById("sAccTitle").textContent=`🎯 Akurasi Harian — ${STK.month||""}`;
+  document.getElementById("sSelTitle").textContent=`📊 Selisih Harian — ${STK.month||""}`;
+  document.getElementById("sTopTitle").textContent=`🏆 Item Selisih Terbesar — ${STK.month||""}`;
+  document.getElementById("sItemTitle").textContent=`📋 Akurasi per Item (${fmt(items.length)} item)`;
+  let h=`<tr><th>#</th><th>Item</th><th>UoM</th><th class="n">SO</th><th class="n">Accurate</th><th class="n">Selisih</th><th class="n">Akurasi</th></tr>`;
+  [...items].sort((a,b)=>b[4]-a[4]).slice(0,100).forEach((x,i)=>{const a=x[2]?100-Math.abs(x[2]-x[3])/x[2]*100:100;h+=`<tr><td>${i+1}</td><td>${x[0]}</td><td>${x[1]}</td><td class="n">${fmt(x[2])}</td><td class="n">${fmt(x[3])}</td><td class="n" style="color:${x[4]?"#f87171":"#4ade80"}">${fmt(x[4])}</td><td class="n">${a.toFixed(1)}%</td></tr>`;});
+  document.getElementById("sItems").innerHTML=h;
+  let h2=`<tr><th>Tgl</th><th class="n">SO</th><th class="n">Accurate</th><th class="n">Selisih</th><th class="n">Akurasi</th></tr>`;
+  dd.forEach(d=>{const r=(STK.daily||[])[d.i-1];h2+=`<tr><td><b>${d.i}</b></td><td class="n">${fmt(r.so)}</td><td class="n">${fmt(r.acc)}</td><td class="n" style="color:${d.sel?"#f87171":"#4ade80"}">${fmt(d.sel)}</td><td class="n">${d.acc.toFixed(1)}%</td></tr>`;});
+  document.getElementById("sDaily").innerHTML=h2;
+}
+document.getElementById("btnSTampil").onclick=()=>{SRANGE={cari:document.getElementById("sCari").value.trim().toLowerCase()};renderStock();};
+document.getElementById("btnSReset").onclick=()=>{document.getElementById("sCari").value="";SRANGE={cari:""};renderStock();};
+document.getElementById("sCari").addEventListener("keydown",e=>{if(e.key==="Enter")document.getElementById("btnSTampil").click();});
+async function loadStockLive(){
+  const st=document.getElementById("status");st.textContent="⏳ Mengunduh stock akurasi…";
+  try{
+    const t=await fetch(`https://docs.google.com/spreadsheets/d/${NEWSHEET}/export?format=csv&gid=${GIDS.stock}`).then(r=>{if(!r.ok)throw 0;return r.text();});
+    const rows=parseCSV(t);
+    const inum=s=>{const x=parseInt(String(s||"").replace(/[^0-9\-]/g,""),10);return isNaN(x)?0:x;};
+    const month=(rows[0][0]||"").trim(), daily=Array.from({length:31},()=>({so:0,acc:0,sel:0})), items=[];
+    for(const r of rows.slice(2)){const nm=(r[0]||"").trim();if(!nm||nm.toLowerCase()==="nama item")continue;
+      let so=0,ac=0,se=0,da=0;
+      for(let d=0;d<31;d++){const a=inum(r[2+d*3]),b=inum(r[3+d*3]),c=inum(r[4+d*3]);if(a||b||c)da++;so+=a;ac+=b;se+=c;daily[d].so+=a;daily[d].acc+=b;daily[d].sel+=Math.abs(c);}
+      items.push([nm,(r[1]||"").trim(),so,ac,se,da]);}
+    STK={month,daily,items,live:true};
+    st.textContent=`🟢 Stock LIVE: ${fmt(items.length)} item • update ${new Date().toLocaleString("id-ID")}`;
+  }catch(e){st.textContent="⚠ Gagal fetch stock (kemungkinan CORS). Snapshot tetap tampil.";}
+  renderStock();
+}
+document.getElementById("btnSRefresh").onclick=loadStockLive;
+
+// ===== FULLFILMENT MWH =====
+let FUL=Object.assign({live:false,months:[],items:[],daily:{},itemMonth:{}},NEWDATA.fulfil);
+let URANGE={bulan:"all"};
+let uCharts={};
+const UMONL={"Januari":0,"Februari":1,"Maret":2,"April":3,"Mei":4,"Juni":5,"Juli":6,"Agustus":7,"September":8,"Oktober":9,"November":10,"Desember":11};
+function uParseD(s){const m=String(s||"").match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);if(!m||UMONL[m[2]]===undefined)return null;return new Date(+m[3],UMONL[m[2]],+m[1]);}
+function renderFulfil(){
+  const months=FUL.months||[];
+  const bSel=document.getElementById("uBulan");
+  if(bSel.options.length<=1){months.forEach(m=>{const o=document.createElement("option");o.value=m;o.textContent=m+" 2026";bSel.appendChild(o);});}
+  bSel.value=URANGE.bulan;
+  const B=URANGE.bulan, isAll=(B==="all");
+  const mLab=isAll?"Semua Bulan":(B+" 2026");
+  document.getElementById("uPeriode").innerHTML=`<div class="pinfo">📌 Fullfilment MWH Batu Ceper: <b>${mLab}</b> • ${FUL.live?"🟢 LIVE Sheets":"🟡 Snapshot"} • <span style="color:#94a3b8">SO = order, DO = terkirim, Fisik = cek fisik</span></div>`;
+  const aggM=m=>{let so=0,doo=0,fi=0;const days=new Set();for(const k of Object.keys(FUL.daily)){const[a,b,c]=k.split("||");if(a!==m)continue;days.add(b);if(c==="SO")so+=FUL.daily[k];else if(c==="DO")doo+=FUL.daily[k];else fi+=FUL.daily[k];}return{so,doo,fi,days:days.size};};
+  let SO=0,DO=0,FI=0,ND=0;
+  if(isAll){months.forEach(m=>{const a=aggM(m);SO+=a.so;DO+=a.doo;FI+=a.fi;ND+=a.days;});}
+  else{const a=aggM(B);SO=a.so;DO=a.doo;FI=a.fi;ND=a.days;}
+  const rDO=SO?DO/SO*100:0, rFI=SO?FI/SO*100:0, rFD=DO?FI/DO*100:0;
+  document.getElementById("uKpis").innerHTML=`
+  <div class="kpi"><small>Total SO (${mLab})</small><b>${fmt(Math.round(SO))}</b><span>${fmt(ND)} hari × ${fmt(FUL.items.length)} item</span></div>
+  <div class="kpi"><small>Total DO</small><b>${fmt(Math.round(DO))}</b><span>${rDO.toFixed(1)}% dari SO</span></div>
+  <div class="kpi"><small>Total Fisik</small><b>${fmt(Math.round(FI))}</b><span>${rFI.toFixed(1)}% dari SO • ${rFD.toFixed(1)}% dari DO</span></div>
+  <div class="kpi"><small>Gap DO − SO</small><b style="color:${DO-SO<0?"#f87171":"#4ade80"}">${(DO-SO>=0?"+":"")+fmt(Math.round(DO-SO))}</b><span>Fisik − DO: ${(FI-DO>=0?"+":"")+fmt(Math.round(FI-DO))}</span></div>`;
+  Object.values(uCharts).forEach(c=>c.destroy());uCharts={};
+  uCharts.month=new Chart(document.getElementById("uMonth"),{type:"bar",data:{labels:months,datasets:[{label:"SO",data:months.map(m=>Math.round(aggM(m).so)),backgroundColor:"#475569"},{label:"DO",data:months.map(m=>Math.round(aggM(m).doo)),backgroundColor:months.map(m=>isAll?"#38bdf8":(m===B?"#22c55e":"#475569"))},{label:"Fisik",data:months.map(m=>Math.round(aggM(m).fi)),backgroundColor:"#f59e0b"}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}}}});
+  // tren harian
+  let dk=[],dSO=[],dDO=[],dFI=[];
+  const allD=[...new Set(Object.keys(FUL.daily).map(k=>{const[a,b]=k.split("||");return (isAll||a===B)?b:null;}).filter(Boolean))].sort((a,b)=>uParseD(a)-uParseD(b));
+  dk=allD.map(d=>{const p=uParseD(d);return p?p.getDate()+"/"+(p.getMonth()+1):d;});
+  const g3=(m,d,t)=>FUL.daily[m+"||"+d+"||"+t]||0;
+  if(isAll){const mm={};allD.forEach(d=>{let s={so:0,doo:0,fi:0};months.forEach(m=>{s.so+=g3(m,d,"SO");s.doo+=g3(m,d,"DO");s.fi+=g3(m,d,"FISIK");});mm[d]=s;});
+    dSO=allD.map(d=>Math.round(mm[d].so));dDO=allD.map(d=>Math.round(mm[d].doo));dFI=allD.map(d=>Math.round(mm[d].fi));}
+  else{dSO=allD.map(d=>Math.round(g3(B,d,"SO")));dDO=allD.map(d=>Math.round(g3(B,d,"DO")));dFI=allD.map(d=>Math.round(g3(B,d,"FISIK")));}
+  uCharts.daily=new Chart(document.getElementById("uDaily"),{type:"line",data:{labels:dk,datasets:[{label:"SO",data:dSO,borderColor:"#94a3b8",pointRadius:0,tension:.25},{label:"DO",data:dDO,borderColor:"#38bdf8",pointRadius:0,tension:.25},{label:"Fisik",data:dFI,borderColor:"#22c55e",pointRadius:0,tension:.25}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8",maxTicksLimit:15}},y:{ticks:{color:"#94a3b8"}}}}});
+  document.getElementById("uDailyTitle").textContent=`📈 Tren Harian SO/DO/Fisik (${mLab})`;
+  // gap per item
+  const perI={};
+  for(const k of Object.keys(FUL.itemMonth)){const[a,nm,t]=k.split("||");if(!isAll&&a!==B)continue;perI[nm]=perI[nm]||{so:0,doo:0,fi:0};const v=FUL.itemMonth[k][0];if(t==="SO")perI[nm].so+=v;else if(t==="DO")perI[nm].doo+=v;else perI[nm].fi+=v;}
+  const gap=Object.entries(perI).map(([nm,v])=>({nm,gap:v.doo-v.so,so:v.so,doo:v.doo,fi:v.fi})).filter(x=>x.so||x.doo).sort((a,b)=>Math.abs(b.gap)-Math.abs(a.gap)).slice(0,12);
+  uCharts.gap=new Chart(document.getElementById("uGap"),{type:"bar",data:{labels:gap.map(x=>x.nm.length>28?x.nm.slice(0,28)+"…":x.nm),datasets:[{data:gap.map(x=>Math.round(x.gap)),backgroundColor:gap.map(x=>x.gap<0?"#ef4444":"#22c55e")}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#e2e8f0",font:{size:11}}}}}});
+  document.getElementById("uGapTitle").textContent=`⚠️ Gap Terbesar DO − SO per Item (${mLab})`;
+  document.getElementById("uItemTitle").textContent=`📋 Realisasi per Item (${mLab})`;
+  const rows=Object.entries(perI).map(([nm,v])=>({nm,so:v.so,doo:v.doo,fi:v.fi})).sort((a,b)=>b.so-a.so).slice(0,100);
+  let h=`<tr><th>#</th><th>Item</th><th class="n">SO</th><th class="n">DO</th><th class="n">Fisik</th><th class="n">DO/SO</th><th class="n">Fisik/SO</th></tr>`;
+  rows.forEach((x,i)=>{h+=`<tr><td>${i+1}</td><td>${x.nm}</td><td class="n">${fmt(Math.round(x.so))}</td><td class="n">${fmt(Math.round(x.doo))}</td><td class="n">${fmt(Math.round(x.fi))}</td><td class="n" style="color:${x.so&&x.doo/x.so<1?"#f87171":"#4ade80"}">${x.so?(x.doo/x.so*100).toFixed(1)+"%":"—"}</td><td class="n">${x.so?(x.fi/x.so*100).toFixed(1)+"%":"—"}</td></tr>`;});
+  document.getElementById("uItems").innerHTML=h;
+}
+document.getElementById("btnUTampil").onclick=()=>{URANGE={bulan:document.getElementById("uBulan").value};renderFulfil();};
+document.getElementById("btnUReset").onclick=()=>{document.getElementById("uBulan").value="all";URANGE={bulan:"all"};renderFulfil();};
+async function loadFulfilLive(){
+  const st=document.getElementById("status");st.textContent="⏳ Mengunduh fullfilment…";
+  try{
+    const t=await fetch(`https://docs.google.com/spreadsheets/d/${NEWSHEET}/export?format=csv&gid=${GIDS.fulfil}`).then(r=>{if(!r.ok)throw 0;return r.text();});
+    const rows=parseCSV(t);
+    const MON={oktober:"Oktober",september:"September",juli:"Juli",juni:"Juni",januari:"Januari",februari:"Februari",maret:"Maret",april:"April",mei:"Mei",agustus:"Agustus",november:"November",desember:"Desember"};
+    let item_names=[],months=[],daily={},itemMonth={},cur=null,lastTgl="";
+    const rn=s=>{if(!s)return 0;const x=parseFloat(String(s).replace(/[^0-9.\-]/g,""));return isNaN(x)?0:x;};
+    rows.forEach((r,i)=>{
+      const c1=(r[1]||"").trim();
+      if(c1.toLowerCase()==="bulan"){
+        for(let j=i-1;j>=Math.max(0,i-5);j--){if((rows[j][5]||"").trim()&&!(rows[j][1]||"").trim()&&!(rows[j][4]||"").trim()){item_names=rows[j].slice(5).map(x=>(x||"").trim());break;}}
+        cur="__HDR__";lastTgl="";return;
+      }
+      if(cur===null)return;
+      if(cur==="__HDR__"){if(c1){const s=MON[c1.toLowerCase()]||c1;cur=s;if(!months.includes(s))months.push(s);}else return;}
+      if(c1){const s=MON[c1.toLowerCase()];if(s&&s!==cur){cur=s;if(!months.includes(s))months.push(s);}}
+      const typ=(r[4]||"").trim().toUpperCase();
+      if(!["SO","DO","FISIK"].includes(typ))return;
+      const tgl=(r[2]||"").trim()||(r[3]||"").trim()||lastTgl;
+      if(!tgl)return;
+      lastTgl=tgl;let tot=0;
+      for(let j=5;j<r.length;j++){const q=rn(r[j]);if(q){tot+=q;const inm=item_names[j-5]||"";if(inm){const k=cur+"||"+inm+"||"+typ;const e=itemMonth[k]=itemMonth[k]||[0,0];e[0]+=q;e[1]++;}}}
+      daily[cur+"||"+tgl+"||"+typ]=(daily[cur+"||"+tgl+"||"+typ]||0)+tot;
+    });
+    FUL={months,items:item_names,daily,itemMonth,live:true};
+    st.textContent=`🟢 Fullfilment LIVE update ${new Date().toLocaleString("id-ID")}`;
+  }catch(e){st.textContent="⚠ Gagal fetch fullfilment (kemungkinan CORS). Snapshot tetap tampil.";}
+  renderFulfil();
+}
+document.getElementById("btnURefresh").onclick=loadFulfilLive;
+
+// ===== GMP =====
+let GMP=Object.assign({live:false,months:[],whs:[],vals:{}},NEWDATA.gmp);
+let GRANGE={wh:"all"};
+let gCharts={};
+function gHeat(v){if(v===null||v===undefined||isNaN(v))return"background:var(--card)";if(v<65)return"background:rgba(239,68,68,.35)";if(v<80)return"background:rgba(245,158,11,.3)";return"background:rgba(34,197,94,.3)";}
+function renderGmp(){
+  const months=GMP.months||[], whs=GMP.whs||[];
+  const wSel=document.getElementById("gWh");
+  if(wSel.options.length<=1){whs.forEach(w=>{const o=document.createElement("option");o.value=w;o.textContent=w;wSel.appendChild(o);});}
+  wSel.value=GRANGE.wh;
+  const W=GRANGE.wh, isAll=(W==="all");
+  const mLab=isAll?"Semua Warehouse":W;
+  document.getElementById("gPeriode").innerHTML=`<div class="pinfo">📌 GMP Score: <b>${mLab}</b> • Jan–Sep 2026 • ${GMP.live?"🟢 LIVE Sheets":"🟡 Snapshot"}</div>`;
+  const avg=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:0;
+  const whAvg={}; whs.forEach(w=>{whAvg[w]=avg(months.map(m=>GMP.vals[m+"||"+w]).filter(v=>v!==null&&v!==undefined));});
+  const selAvg=isAll?avg(whs.map(w=>whAvg[w])):whAvg[W];
+  const allV=months.flatMap(m=>whs.map(w=>({m,w,v:GMP.vals[m+"||"+w]}))).filter(x=>x.v!==null&&x.v!==undefined);
+  const best=[...allV].sort((a,b)=>b.v-a.v)[0]||{m:"—",w:"—",v:0};
+  const worst=[...allV].sort((a,b)=>a.v-b.v)[0]||{m:"—",w:"—",v:0};
+  const bestWh=Object.entries(whAvg).sort((a,b)=>b[1]-a[1])[0]||["—",0];
+  const worstWh=Object.entries(whAvg).sort((a,b)=>a[1]-b[1])[0]||["—",0];
+  document.getElementById("gKpis").innerHTML=`
+  <div class="kpi"><small>Rata-rata (${mLab})</small><b>${selAvg.toFixed(2)}</b><span>skor GMP</span></div>
+  <div class="kpi"><small>Skor Tertinggi</small><b style="color:#4ade80">${best.v.toFixed(2)}</b><span>${best.w} • ${best.m}</span></div>
+  <div class="kpi"><small>Skor Terendah</small><b style="color:#f87171">${worst.v.toFixed(2)}</b><span>${worst.w} • ${worst.m}</span></div>
+  <div class="kpi"><small>WH Terbaik (avg)</small><b style="font-size:15px">${bestWh[0]}</b><span>${bestWh[1].toFixed(2)}</span></div>
+  <div class="kpi"><small>WH Perhatian (avg)</small><b style="font-size:15px">${worstWh[0]}</b><span>${worstWh[1].toFixed(2)}</span></div>`;
+  Object.values(gCharts).forEach(c=>c.destroy());gCharts={};
+  gCharts.trend=new Chart(document.getElementById("gTrend"),{type:"line",data:{labels:months,datasets:whs.map((w,i)=>({label:w,data:months.map(m=>GMP.vals[m+"||"+w]),borderColor:isAll?PAL[i%PAL.length]:(w===W?"#22c55e":"#475569"),borderWidth:isAll?2:(w===W?3:1),tension:.3,spanGaps:true}))},options:{plugins:{legend:{labels:{color:"#e2e8f0",boxWidth:12}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{min:30,max:100,ticks:{color:"#94a3b8"}}}}});
+  const sWh=[...whs].sort((a,b)=>whAvg[b]-whAvg[a]);
+  gCharts.avg=new Chart(document.getElementById("gAvg"),{type:"bar",data:{labels:sWh,datasets:[{data:sWh.map(w=>+whAvg[w].toFixed(2)),backgroundColor:sWh.map(w=>isAll?"#38bdf8":(w===W?"#22c55e":"#475569"))}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{min:30,max:100,ticks:{color:"#94a3b8"}},y:{ticks:{color:"#e2e8f0",font:{size:11}}}}}});
+  let h=`<tr><th>Bulan</th>${whs.map(w=>`<th class="n">${w}</th>`).join("")}</tr>`;
+  months.forEach(m=>{h+=`<tr><td><b>${m}</b></td>`;whs.forEach(w=>{const v=GMP.vals[m+"||"+w];h+=`<td class="heat" style="${gHeat(v)}${(!isAll&&w===W)?";outline:2px solid #22c55e":""}">${v===null||v===undefined?"—":v.toFixed(2).replace(".",",")}</td>`;});h+=`</tr>`;});
+  h+=`<tr><td><b>Avg</b></td>${whs.map(w=>`<td class="heat" style="${gHeat(whAvg[w])}">${whAvg[w].toFixed(2).replace(".",",")}</td>`).join("")}</tr>`;
+  document.getElementById("gMatrix").innerHTML=h;
+}
+document.getElementById("btnGTampil").onclick=()=>{GRANGE={wh:document.getElementById("gWh").value};renderGmp();};
+document.getElementById("btnGReset").onclick=()=>{document.getElementById("gWh").value="all";GRANGE={wh:"all"};renderGmp();};
+async function loadGmpLive(){
+  const st=document.getElementById("status");st.textContent="⏳ Mengunduh GMP…";
+  try{
+    const t=await fetch(`https://docs.google.com/spreadsheets/d/${NEWSHEET}/export?format=csv&gid=${GIDS.gmp}`).then(r=>{if(!r.ok)throw 0;return r.text();});
+    const rows=parseCSV(t);
+    const hi=rows.findIndex(r=>r.includes("Bulan"));
+    const whs=rows[hi].slice(2).map(x=>(x||"").trim()).filter(x=>x&&x.toLowerCase()!=="average");
+    const months=[],vals={};
+    for(const r of rows.slice(hi+1)){const m=(r[1]||"").trim();if(!m||m.toLowerCase().startsWith("average"))continue;
+      if(!r.slice(2).join("").trim())continue;
+      months.push(m);
+      whs.forEach((w,j)=>{const s=(r[2+j]||"").trim().replace(/\./g,"").replace(",",".");const v=parseFloat(s);vals[m+"||"+w]=isNaN(v)?null:v;});}
+    GMP={months,whs,vals,live:true};
+    st.textContent=`🟢 GMP LIVE update ${new Date().toLocaleString("id-ID")}`;
+  }catch(e){st.textContent="⚠ Gagal fetch GMP (kemungkinan CORS). Snapshot tetap tampil.";}
+  renderGmp();
+}
+document.getElementById("btnGRefresh").onclick=loadGmpLive;
+
+// ===== KOMPLAIN =====
+let KOM=Object.assign({live:false,recs:[]},NEWDATA.komplain);
+let KRANGE={status:"all"};
+let kCharts={};
+function kVal(s){if(!s)return 0;const n=parseFloat(String(s).replace(/[^0-9]/g,""));return isNaN(n)?0:n;}
+function renderKomplain(){
+  const recs=KOM.recs||[];
+  const sSel=document.getElementById("kStatus");
+  const sts=[...new Set(recs.map(r=>r[13]||"-"))].sort();
+  if(sSel.options.length<=1){sts.forEach(s=>{const o=document.createElement("option");o.value=s;o.textContent=s;sSel.appendChild(o);});}
+  sSel.value=KRANGE.status;
+  const S=KRANGE.status;
+  const f=recs.filter(r=>S==="all"||(r[13]||"-")===S);
+  const mLab=S==="all"?"Semua Status":S;
+  document.getElementById("kPeriode").innerHTML=`<div class="pinfo">📌 Rekap Komplain: <b>${mLab}</b> • ${KOM.live?"🟢 LIVE Sheets":"🟡 Snapshot"}</div>`;
+  const kasus=new Set(f.map(r=>r[0])).size;
+  const val=f.reduce((s,r)=>s+kVal(r[15]),0);
+  const done=f.filter(r=>/done/i.test(r[13]||"")).length, proc=f.filter(r=>/process|proses/i.test(r[13]||"")).length;
+  const coa={};f.forEach(r=>coa[r[9]||"-"]=(coa[r[9]||"-"]||0)+1);
+  const topCoa=Object.entries(coa).sort((a,b)=>b[1]-a[1])[0]||["—",0];
+  const rate=f.length?done/f.length*100:0;
+  document.getElementById("kKpis").innerHTML=`
+  <div class="kpi"><small>Total Kasus</small><b>${fmt(kasus)}</b><span>${fmt(f.length)} baris item komplain</span></div>
+  <div class="kpi"><small>Total Value</small><b>${fmtRp(val)}</b><span>${mLab}</span></div>
+  <div class="kpi"><small>Done</small><b style="color:#4ade80">${fmt(done)}</b><span>${rate.toFixed(1)}% selesai • ${fmt(proc)} on process</span></div>
+  <div class="kpi"><small>CoA Terbanyak</small><b style="font-size:15px">${topCoa[0]}</b><span>${fmt(topCoa[1])} kejadian</span></div>`;
+  Object.values(kCharts).forEach(c=>c.destroy());kCharts={};
+  const bySt={};f.forEach(r=>bySt[r[13]||"-"]=(bySt[r[13]||"-"]||0)+1);
+  kCharts.st=new Chart(document.getElementById("kStatusC"),{type:"doughnut",data:{labels:Object.keys(bySt),datasets:[{data:Object.values(bySt),backgroundColor:PAL}]},options:{plugins:{legend:{position:"right",labels:{color:"#e2e8f0",boxWidth:12}}}}});
+  const coaS=Object.entries(coa).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  kCharts.coa=new Chart(document.getElementById("kCoa"),{type:"bar",data:{labels:coaS.map(x=>x[0].length>24?x[0].slice(0,24)+"…":x[0]),datasets:[{data:coaS.map(x=>x[1]),backgroundColor:"#f59e0b"}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#e2e8f0",font:{size:11}}}}}});
+  document.getElementById("kTableTitle").textContent=`📋 Daftar Komplain (${mLab})`;
+  let h=`<tr><th>No</th><th>Tgl Komplain</th><th>Outlet</th><th>Barang</th><th class="n">Jml Komplain</th><th>CoA</th><th>Status</th><th class="n">Value</th><th>Tindak Lanjut</th></tr>`;
+  f.forEach(r=>{h+=`<tr><td>${r[0]}</td><td>${r[3]}</td><td>${r[4]}</td><td>${r[5]} <span style="color:#94a3b8;font-size:11px">${r[8]}</span></td><td class="n">${r[7]}</td><td>${r[9]}</td><td>${/done/i.test(r[13]||"")?'<span class="badge">Done</span>':r[13]}</td><td class="n">${r[15]||"—"}</td><td>${r[10]}</td></tr>`;});
+  document.getElementById("kTable").innerHTML=h;
+}
+document.getElementById("btnKTampil").onclick=()=>{KRANGE={status:document.getElementById("kStatus").value};renderKomplain();};
+document.getElementById("btnKReset").onclick=()=>{document.getElementById("kStatus").value="all";KRANGE={status:"all"};renderKomplain();};
+async function loadKomplainLive(){
+  const st=document.getElementById("status");st.textContent="⏳ Mengunduh komplain…";
+  try{
+    const t=await fetch(`https://docs.google.com/spreadsheets/d/${NEWSHEET}/export?format=csv&gid=${GIDS.komplain}`).then(r=>{if(!r.ok)throw 0;return r.text();});
+    const rows=parseCSV(t);
+    const hi=rows.findIndex(r=>r.includes("No")&&r.join("|").includes("Kasus"));
+    const recs=[];let last=["","","","","",""];
+    for(const r of rows.slice(hi+1)){const rr=r.concat(Array(18).fill(""));if(!(rr[6]||"").trim())continue;
+      const head=[1,2,3,4,5].map(i=>(rr[i]||"").trim());
+      if(head[0])last=head;else head.forEach((v,i)=>head[i]=last[i]);
+      recs.push(head.concat([6,7,8,9,10,11,12,13,14,15,16].map(i=>(rr[i]||"").trim())));}
+    KOM={recs,live:true};
+    st.textContent=`🟢 Komplain LIVE: ${fmt(recs.length)} baris • update ${new Date().toLocaleString("id-ID")}`;
+  }catch(e){st.textContent="⚠ Gagal fetch komplain (kemungkinan CORS). Snapshot tetap tampil.";}
+  renderKomplain();
+}
+document.getElementById("btnKRefresh").onclick=loadKomplainLive;
+
+// ===== MPS =====
+let MPS=Object.assign({live:false,sections:[]},NEWDATA.mps);
+let MRANGE={sec:0};
+let mCharts={};
+const MFULL={Januari:0,Februari:1,Maret:2,April:3,Mei:4,Juni:5,Juli:6,Agustus:7,September:8,Oktober:9,November:10,Desember:11};
+function mParseD(s){const m=String(s||"").match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);if(!m||MFULL[m[2]]===undefined)return null;return new Date(+m[3],MFULL[m[2]],+m[1]);}
+function mSecLabel(s,i){const ds=(s.dates||[]).filter(d=>mParseD(d.d));const range=ds.length?` (${ds[0].d} – ${ds[ds.length-1].d})`:"";return `${s.type} #${i+1}${range}`;}
+function renderMps(){
+  const secs=MPS.sections||[];
+  const sel=document.getElementById("mSec");
+  if(!sel.options.length){secs.forEach((s,i)=>{const o=document.createElement("option");o.value=i;o.textContent=mSecLabel(s,i);sel.appendChild(o);});}
+  if(MRANGE.sec>=secs.length)MRANGE.sec=0;
+  sel.value=MRANGE.sec;
+  const s=secs[MRANGE.sec];
+  const mLab=s?mSecLabel(s,MRANGE.sec):"—";
+  document.getElementById("mPeriode").innerHTML=`<div class="pinfo">📌 MPS Man Power & Productivity: <b>${mLab}</b> • ${MPS.live?"🟢 LIVE Sheets":"🟡 Snapshot"}</div>`;
+  const ds=s?(s.dates||[]).filter(d=>mParseD(d.d)).sort((a,b)=>mParseD(a.d)-mParseD(b.d)):[];
+  const sum=a=>a.reduce((x,y)=>x+y,0);
+  const tGram=sum(ds.map(d=>d.gramasi)), tJam=sum(ds.map(d=>d.jam));
+  const aProd=ds.length?sum(ds.map(d=>d.prod))/ds.length:0, aCrew=ds.length?sum(ds.map(d=>d.crew))/ds.length:0;
+  const bestD=[...ds].sort((a,b)=>b.prod-a.prod)[0];
+  document.getElementById("mKpis").innerHTML=`
+  <div class="kpi"><small>Total Gramasi (${mLab})</small><b>${fmt(Math.round(tGram))}</b><span>${fmt(ds.length)} hari aktif</span></div>
+  <div class="kpi"><small>Rata-rata Productivity</small><b>${Math.round(aProd).toLocaleString("id-ID")}</b><span>gramasi ÷ jam ÷ crew</span></div>
+  <div class="kpi"><small>Total Jam Kerja</small><b>${fmt(tJam)}</b><span>rata-rata crew ${aCrew.toFixed(1)}/hari</span></div>
+  <div class="kpi"><small>Productivity Tertinggi</small><b>${bestD?Math.round(bestD.prod).toLocaleString("id-ID"):"—"}</b><span>${bestD?bestD.d:"—"}</span></div>`;
+  Object.values(mCharts).forEach(c=>c.destroy());mCharts={};
+  const lab=ds.map(d=>{const p=mParseD(d.d);return p?p.getDate()+"/"+(p.getMonth()+1):d.d;});
+  mCharts.prod=new Chart(document.getElementById("mProd"),{type:"line",data:{labels:lab,datasets:[{label:"Productivity",data:ds.map(d=>Math.round(d.prod)),borderColor:"#22c55e",tension:.25},{label:"Rata-rata",data:ds.map(()=>Math.round(aProd)),borderColor:"#f59e0b",borderDash:[6,4],pointRadius:0}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8",maxTicksLimit:16}},y:{ticks:{color:"#94a3b8"}}}}});
+  mCharts.gram=new Chart(document.getElementById("mGram"),{type:"bar",data:{labels:lab,datasets:[{label:"Gramasi",data:ds.map(d=>Math.round(d.gramasi)),backgroundColor:"#38bdf8"},{label:"Crew ×1000",data:ds.map(d=>Math.round(d.crew*1000)),backgroundColor:"#a78bfa"}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8",maxTicksLimit:16}},y:{ticks:{color:"#94a3b8"}}}}});
+  document.getElementById("mProdTitle").textContent=`⚙️ Tren Productivity Harian (${mLab})`;
+  document.getElementById("mGramTitle").textContent=`📦 Tren Gramasi & Crew Harian (${mLab})`;
+  document.getElementById("mTableTitle").textContent=`📋 Harian (${mLab})`;
+  const secAvg=secs.map((x,i)=>({label:mSecLabel(x,i),avg:(x.dates||[]).filter(d=>mParseD(d.d)).reduce((a2,d,i2,arr)=>a2+d.prod/arr.length,0)}));
+  mCharts.sec=new Chart(document.getElementById("mSecAvg"),{type:"bar",data:{labels:secAvg.map(x=>x.label.length>34?x.label.slice(0,34)+"…":x.label),datasets:[{data:secAvg.map(x=>Math.round(x.avg)),backgroundColor:secAvg.map((_,i)=>i===MRANGE.sec?"#22c55e":"#475569")}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#e2e8f0",font:{size:11}}}}}});
+  let h=`<tr><th>Tanggal</th><th class="n">Jam</th><th class="n">Crew</th><th class="n">Gramasi</th><th class="n">Productivity</th></tr>`;
+  ds.forEach(d=>{h+=`<tr><td><b>${d.d}</b></td><td class="n">${d.jam}</td><td class="n">${d.crew}</td><td class="n">${fmt(Math.round(d.gramasi))}</td><td class="n" style="color:${d.prod>=aProd?"#4ade80":"#f87171"}">${Math.round(d.prod).toLocaleString("id-ID")}</td></tr>`;});
+  document.getElementById("mTable").innerHTML=h;
+}
+document.getElementById("btnMTampil").onclick=()=>{MRANGE={sec:+document.getElementById("mSec").value||0};renderMps();};
+document.getElementById("btnMReset").onclick=()=>{document.getElementById("mSec").value=0;MRANGE={sec:0};renderMps();};
+async function loadMpsLive(){
+  const st=document.getElementById("status");st.textContent="⏳ Mengunduh MPS…";
+  try{
+    const t=await fetch(`https://docs.google.com/spreadsheets/d/${NEWSHEET}/export?format=csv&gid=${GIDS.mps}`).then(r=>{if(!r.ok)throw 0;return r.text();});
+    const rows=parseCSV(t);
+    const rn=s=>{if(!s)return 0;const x=parseFloat(String(s).replace(/[^0-9.\-]/g,""));return isNaN(x)?0:x;};
+    const secs=[];let cur=null;
+    for(const r of rows){const c0=(r[0]||"").trim().toLowerCase();
+      if(c0==="inbound"||c0==="outbound"){cur={type:r[0].trim(),dates:{}};secs.push(cur);continue;}
+      if(!cur)continue;
+      const d=(r[1]||"").trim(), met=(r[2]||"").trim();
+      if(!d||d.toLowerCase()==="keterangan")continue;
+      if(!["Jam Kerja","Jmlh Crew","Gramasi","Productivity"].includes(met))continue;
+      const e=cur.dates[d]=cur.dates[d]||{};
+      e[met]=rn(r[3]);}
+    MPS={sections:secs.map(x=>({type:x.type,dates:Object.entries(x.dates).map(([d,v])=>({d,jam:v["Jam Kerja"]||0,crew:v["Jmlh Crew"]||0,gramasi:v["Gramasi"]||0,prod:v["Productivity"]||0}))})),live:true};
+    const sel=document.getElementById("mSec");sel.innerHTML="";MRANGE={sec:0};
+    st.textContent=`🟢 MPS LIVE update ${new Date().toLocaleString("id-ID")}`;
+  }catch(e){st.textContent="⚠ Gagal fetch MPS (kemungkinan CORS). Snapshot tetap tampil.";}
+  renderMps();
+}
+document.getElementById("btnMRefresh").onclick=loadMpsLive;
+renderAdj();
 </script>
 </body>
 </html>
