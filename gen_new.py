@@ -28,6 +28,29 @@ def inum(s):
         return 0
 
 
+def idnum(s):
+    """Parse Indonesian-formatted numbers: '225.945'->225945, '-123.891'->-123891,
+    '4,'->4.0, '60,00'->60.0, 'Rp1.638.000'->1638000."""
+    if s is None:
+        return 0.0
+    t = str(s).strip()
+    if not t:
+        return 0.0
+    neg = t.startswith('-') or (t.startswith('(') and t.endswith(')'))
+    t = t.strip('-() ')
+    if ',' in t:
+        intpart, dec = t.rsplit(',', 1)
+        dec = re.sub(r'[^0-9]', '', dec)
+        t = re.sub(r'[^0-9]', '', intpart) + ('.' + dec if dec else '')
+    else:
+        t = re.sub(r'[^0-9]', '', t)
+    try:
+        v = float(t) if t else 0.0
+    except Exception:
+        v = 0.0
+    return -v if neg else v
+
+
 OUT = {}
 
 # ---------- 1. ADJUSTMENT (same format as before) ----------
@@ -48,10 +71,10 @@ for r in rows[hIdx + 1:]:
     r = list(r) + [''] * 14
     if not r[1] and not r[2] and not r[3]:
         continue
-    qty = num(r[4])
+    qty = idnum(r[4])
     tipe = (r[6] or '').strip() or '-'
     akun = (r[7] or '').strip() or '-'
-    biaya = num(r[8])
+    biaya = idnum(r[8])
     gud = (r[9] or '').strip() or '-'
     bln = (r[11] or '').strip() or '-'
     nRec += 1
@@ -129,10 +152,13 @@ last_tgl = ''
 for i, r in enumerate(rows):
     c1 = (r[1] or '').strip()
     if c1.lower() == 'bulan':
-        # header row: item names are in the nearest rows above with col F filled
+        # header row: item names are in the nearest row above that is NOT a satuan row
+        SATS = {'pack', 'pcs', 'bks', 'kg', 'dus', 'ctn', 'ikat', 'jrg', 'buku',
+                'paket', 'rim', 'set', 'ltr', 'pck'}
         for j in range(i - 1, max(-1, i - 5), -1):
             if (rows[j][5] or '').strip() and not (rows[j][1] or '').strip() and not (rows[j][4] or '').strip():
-                # ensure it's item-name row (next row should be satuan like Pack/Pcs)
+                if (rows[j][5] or '').strip().lower() in SATS:
+                    continue  # baris satuan, lewati
                 item_names = [(rows[j][k] or '').strip() for k in range(5, len(rows[j]))]
                 break
         cur = '__HDR__'
@@ -159,12 +185,14 @@ for i, r in enumerate(rows):
     if typ not in ('SO', 'DO', 'FISIK'):
         continue
     tgl = (r[2] or '').strip() or (r[3] or '').strip() or last_tgl
+    if not re.match(r'^\d{1,2}\s+\w+\s+\d{4}$', tgl):
+        continue  # lewati baris ringkasan TOTAL/BULAN, Week N, dsb
     if not tgl:
         continue
     last_tgl = tgl
     tot = 0.0
     for j in range(5, len(r)):
-        q = num(r[j])
+        q = idnum(r[j])
         if q:
             tot += q
             inm = item_names[j - 5] if j - 5 < len(item_names) else ''
@@ -236,7 +264,7 @@ for r in rows:
     if not d or d.lower() == 'keterangan' or met not in ('Jam Kerja', 'Jmlh Crew', 'Gramasi', 'Productivity'):
         continue
     e = cur['dates'].setdefault(d, {})
-    e[met] = num(r[3])
+    e[met] = idnum(r[3])
 for s in sections:
     s['dates'] = [{'d': d, 'jam': v.get('Jam Kerja', 0), 'crew': v.get('Jmlh Crew', 0),
                    'gramasi': v.get('Gramasi', 0), 'prod': v.get('Productivity', 0)}

@@ -100,6 +100,8 @@ td.heat{font-weight:700;text-align:right}
 <div id="tabStock" style="display:none">
 <div class="toolbar">
 <label>Cari item: <input id="sCari" placeholder="cth: patty, sosis…"></label>
+<label>Tgl dari: <input id="sDari" type="number" min="1" max="31" value="1" style="width:70px"></label>
+<label>s/d: <input id="sSampai" type="number" min="1" max="31" value="31" style="width:70px"></label>
 <button class="btn" id="btnSTampil">Tampilkan</button>
 <button class="btn warn" id="btnSReset">Reset</button>
 <button class="btn ghost" id="btnSRefresh">↻ Refresh Data</button>
@@ -195,6 +197,12 @@ const fmtRp=n=>"Rp "+Number(Math.round(n||0)).toLocaleString("id-ID");
 const PAL=["#22c55e","#38bdf8","#f59e0b","#a78bfa","#f472b6","#facc15","#34d399","#fb7185","#2dd4bf","#c084fc","#94a3b8","#f97316"];
 function parseCSV(t){const rows=[];let row=[],cur="",qq=false;for(let i=0;i<t.length;i++){const c=t[i];if(qq){if(c==='"'){if(t[i+1]==='"'){cur+='"';i++;}else qq=false;}else cur+=c;}else{if(c==='"')qq=true;else if(c===','){row.push(cur);cur="";}else if(c==='\n'){row.push(cur);rows.push(row);row=[];cur="";}else if(c==='\r'){}else cur+=c;}}if(cur!==""||row.length){row.push(cur);rows.push(row);}return rows;}
 function numId(s){if(!s)return 0;const n=parseFloat(String(s).replace(/[^0-9.\-]/g,""));return isNaN(n)?0:n;}
+function numID(s){if(s==null)return 0;let t=String(s).trim();if(!t)return 0;
+  let neg=t.startsWith("-")||(t.startsWith("(")&&t.endsWith(")"));
+  t=t.replace(/^[-(]+|[)-]+$/g,"").trim();
+  if(t.includes(",")){const i=t.lastIndexOf(",");const dec=t.slice(i+1).replace(/[^0-9]/g,"");t=t.slice(0,i).replace(/[^0-9]/g,"")+(dec?"."+dec:"");}
+  else t=t.replace(/[^0-9]/g,"");
+  const v=parseFloat(t);return (isNaN(v)?0:v)*(neg?-1:1);}
 function showTab(w){
   ["adj","ontime","stock","fulfil","gmp","komplain","mps"].forEach(k=>{
     document.getElementById("tab"+k[0].toUpperCase()+k.slice(1)).style.display=w===k?"":"none";
@@ -241,8 +249,11 @@ function renderAdj(){
   const gudKeys=adjKeys(ADJ.tipeGudang,1);
   const byAkun=agg(fAkunBulan,akuns,0), byTipe=agg(fTipeBulan,tipes,0);
   const totV=Object.values(byAkun).reduce((s,v)=>s+v,0);
-  const topAkun=Object.entries(byAkun).sort((a,b)=>b[1]-a[1])[0]||["—",0];
-  const topTipe=Object.entries(byTipe).sort((a,b)=>b[1]-a[1])[0]||["—",0];
+  const presentA=new Set(), presentT=new Set();
+  for(const kk of Object.keys(fAkunBulan)){const[a,b]=kk.split("||");if((isAll||b===B)&&fAkunBulan[kk]!==undefined)presentA.add(a);}
+  for(const kk of Object.keys(fTipeBulan)){const[a,b]=kk.split("||");if((isAll||b===B)&&fTipeBulan[kk]!==undefined)presentT.add(a);}
+  const topAkun=Object.entries(byAkun).filter(([k])=>presentA.has(k)).sort((a,b)=>b[1]-a[1])[0]||["—",0];
+  const topTipe=Object.entries(byTipe).filter(([k])=>presentT.has(k)).sort((a,b)=>b[1]-a[1])[0]||["—",0];
   const nTr=Object.keys(fTipeBulan).filter(k=>isAll||k.split("||")[1]===B).reduce((s,k)=>s+((fTipeBulan[k]||[0])[0]),0);
   document.getElementById("aKpis").innerHTML=`
   <div class="kpi"><small>${mName} (${mLab})</small><b>${aFmt(totV,M)}</b><span>${fmt(nTr)} transaksi</span></div>
@@ -297,7 +308,7 @@ async function loadAdjLive(){
     const rows=parseCSV(t);let hI=rows.findIndex(r=>r.join("|").includes("Nomor #"));if(hI<0)hI=8;
     const aB={},tB={},tG={},tGB={},aGB={};let n=0,bb=0,qq=0;
     for(const r of rows.slice(hI+1)){while(r.length<14)r.push("");if(!r[1]&&!r[2]&&!r[3])continue;
-      const qty=numId(r[4]),tp=((r[6]||"").trim()||"-"),ak=((r[7]||"").trim()||"-"),by=numId(r[8]),gd=((r[9]||"").trim()||"-"),bl=((r[11]||"").trim()||"-");
+      const qty=numID(r[4]),tp=((r[6]||"").trim()||"-"),ak=((r[7]||"").trim()||"-"),by=numID(r[8]),gd=((r[9]||"").trim()||"-"),bl=((r[11]||"").trim()||"-");
       n++;bb+=by;qq+=qty;
       const b=(m,k)=>{const e=m[k]=m[k]||[0,0,0];e[0]++;e[1]+=by;e[2]+=qty;};
       b(aB,ak+"||"+bl);b(tB,tp+"||"+bl);b(tG,tp+"||"+gd);b(tGB,tp+"||"+gd+"||"+bl);b(aGB,ak+"||"+gd+"||"+bl);}
@@ -337,14 +348,14 @@ function renderOntime(){
   const op=f.filter(r=>r.status==="On Proses").length, nost=f.filter(r=>r.status==="-").length;
   const kom=f.filter(r=>/tidak sesuai/i.test(r.komplain)).length;
   const pct=f.length?tw/f.length*100:0;
-  const eksp=[...new Set(f.map(r=>r.ekspedisi||"-"))];
+  const eksp=[...new Set(f.map(r=>r.ekspedisi||"-"))].filter(e=>e!=="-");
   document.getElementById("oKpis").innerHTML=`
   <div class="kpi"><small>Total Pengiriman</small><b>${fmt(f.length)}</b><span>${mLab}</span></div>
   <div class="kpi"><small>Tepat Waktu</small><b style="color:#4ade80">${fmt(tw)}</b><span>${pct.toFixed(1)}% ontime rate</span></div>
   <div class="kpi"><small>Terlambat</small><b style="color:${dl?"#f87171":"#4ade80"}">${fmt(dl)}</b><span>actual &gt; ETA</span></div>
   <div class="kpi"><small>On Proses</small><b>${fmt(op)}</b><span>${fmt(nost)} tanpa status</span></div>
   <div class="kpi"><small>Komplain Tidak Sesuai</small><b style="color:${kom?"#f87171":"#4ade80"}">${fmt(kom)}</b><span>dari kolom komplain</span></div>
-  <div class="kpi"><small>Ekspedisi Aktif</small><b>${fmt(eksp.length)}</b><span>dalam periode</span></div>`;
+  <div class="kpi"><small>Ekspedisi Aktif</small><b>${fmt(eksp.length)}</b><span>tanpa kolom kosong • dalam periode</span></div>`;
   Object.values(oCharts).forEach(c=>c.destroy());oCharts={};
   const bySt={};f.forEach(r=>bySt[r.status]=(bySt[r.status]||0)+1);
   oCharts.dist=new Chart(document.getElementById("oDist"),{type:"doughnut",data:{labels:Object.keys(bySt),datasets:[{data:Object.values(bySt),backgroundColor:PAL}]},options:{plugins:{legend:{position:"right",labels:{color:"#e2e8f0",boxWidth:12}}}}});
@@ -384,24 +395,26 @@ document.getElementById("btnORefresh").onclick=loadOntimeLive;
 
 // ===== STOCK AKURASI =====
 let STK=Object.assign({live:false,month:"",daily:[],items:[]},NEWDATA.stock);
-let SRANGE={cari:""};
+let SRANGE={cari:"",d0:1,d1:31};
 let sCharts={};
 function renderStock(){
   const q=SRANGE.cari;
+  const D0=Math.min(SRANGE.d0||1,SRANGE.d1||31), D1=Math.max(SRANGE.d0||1,SRANGE.d1||31);
   const items=(STK.items||[]).filter(x=>x[0].toLowerCase().includes(q));
-  const totSO=items.reduce((s,x)=>s+x[2],0), totAcc=items.reduce((s,x)=>s+x[3],0), totSel=items.reduce((s,x)=>s+x[4],0);
+  const drange=(STK.daily||[]).filter((d,i)=>(i+1>=D0&&i+1<=D1));
+  const totSO=drange.reduce((s,d)=>s+d.so,0), totAcc=drange.reduce((s,d)=>s+d.acc,0), totSel=drange.reduce((s,d)=>s+Math.abs(d.so-d.acc),0);
   const acc=totSO?100-totSel/totSO*100:100;
   const bad=items.filter(x=>x[4]>0).length;
-  const days=(STK.daily||[]).filter(d=>d.so||d.acc||d.sel).length;
-  document.getElementById("sPeriode").innerHTML=`<div class="pinfo">📌 Stock Opname vs Accurate: <b>${STK.month||"-"}</b> • ${STK.live?"🟢 LIVE Sheets":"🟡 Snapshot"}</div>`;
+  const days=(STK.daily||[]).filter((d,i)=>((d.so||d.acc||d.sel)&&(i+1>=D0&&i+1<=D1))).length;
   document.getElementById("sKpis").innerHTML=`
-  <div class="kpi"><small>Akurasi Stok</small><b style="color:${acc>=95?"#4ade80":(acc>=85?"#facc15":"#f87171")}">${acc.toFixed(2)}%</b><span>1 − Σ|selisih| ÷ ΣSO</span></div>
-  <div class="kpi"><small>Total SO / Accurate</small><b>${fmt(totSO)} / ${fmt(totAcc)}</b><span>selisih abs ${fmt(totSel)}</span></div>
-  <div class="kpi"><small>Item Berselisih</small><b style="color:${bad?"#f87171":"#4ade80"}">${fmt(bad)}</b><span>dari ${fmt(items.length)} item tampil</span></div>
-  <div class="kpi"><small>Hari Tercatat</small><b>${fmt(days)}</b><span>dalam sebulan</span></div>`;
+  <div class="kpi"><small>Akurasi Stok (tgl ${D0}–${D1})</small><b style="color:${acc>=95?"#4ade80":(acc>=85?"#facc15":"#f87171")}">${acc.toFixed(2)}%</b><span>1 − Σ|selisih| ÷ ΣSO periode tampil</span></div>
+  <div class="kpi"><small>Total SO / Accurate</small><b>${fmt(totSO)} / ${fmt(totAcc)}</b><span>selisih abs ${fmt(totSel)} • tgl ${D0}–${D1}</span></div>
+  <div class="kpi"><small>Item Berselisih</small><b style="color:${bad?"#f87171":"#4ade80"}">${fmt(bad)}</b><span>dari ${fmt(items.length)} item tampil (sebulan)</span></div>
+  <div class="kpi"><small>Hari Tercatat</small><b>${fmt(days)}</b><span>tgl ${D0}–${D1}</span></div>`;
   Object.values(sCharts).forEach(c=>c.destroy());sCharts={};
-  const dd=(STK.daily||[]).map((d,i)=>({i:i+1,acc:d.so?100-Math.abs(d.so-d.acc)/d.so*100:(d.acc?0:100),sel:Math.abs(d.so-d.acc)}));
-  sCharts.acc=new Chart(document.getElementById("sAcc"),{type:"line",data:{labels:dd.map(d=>d.i),datasets:[{label:"Akurasi %",data:dd.map(d=>+d.acc.toFixed(1)),borderColor:"#22c55e",tension:.3},{label:"Target 100%",data:dd.map(()=>100),borderColor:"#f59e0b",borderDash:[6,4],pointRadius:0}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{min:80,max:100,ticks:{color:"#94a3b8"}}}}});
+  const dd=(STK.daily||[]).map((d,i)=>({i:i+1,acc:d.so?100-Math.abs(d.so-d.acc)/d.so*100:(d.acc?0:100),sel:Math.abs(d.so-d.acc)})).filter(d=>d.i>=D0&&d.i<=D1);
+  document.getElementById("sPeriode").innerHTML=`<div class="pinfo">📌 Stock Opname vs Accurate: <b>${STK.month||"-"}</b> • tgl ${D0}–${D1} • ${STK.live?"🟢 LIVE Sheets":"🟡 Snapshot"}</div>`;
+  sCharts.acc=new Chart(document.getElementById("sAcc"),{type:"line",data:{labels:dd.map(d=>d.i),datasets:[{label:"Akurasi %",data:dd.map(d=>+d.acc.toFixed(2)),borderColor:"#22c55e",tension:.3},{label:"Target 100%",data:dd.map(()=>100),borderColor:"#f59e0b",borderDash:[6,4],pointRadius:0}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{min:80,max:100,ticks:{color:"#94a3b8"}}}}});
   sCharts.sel=new Chart(document.getElementById("sSel"),{type:"bar",data:{labels:dd.map(d=>d.i),datasets:[{label:"|SO−Accurate|",data:dd.map(d=>d.sel),backgroundColor:"#38bdf8"}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}}}});
   const top=[...items].sort((a,b)=>b[4]-a[4]).slice(0,15);
   sCharts.top=new Chart(document.getElementById("sTop"),{type:"bar",data:{labels:top.map(x=>x[0].length>28?x[0].slice(0,28)+"…":x[0]),datasets:[{data:top.map(x=>x[4]),backgroundColor:"#f59e0b"}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#e2e8f0",font:{size:11}}}}}});
@@ -410,14 +423,14 @@ function renderStock(){
   document.getElementById("sTopTitle").textContent=`🏆 Item Selisih Terbesar — ${STK.month||""}`;
   document.getElementById("sItemTitle").textContent=`📋 Akurasi per Item (${fmt(items.length)} item)`;
   let h=`<tr><th>#</th><th>Item</th><th>UoM</th><th class="n">SO</th><th class="n">Accurate</th><th class="n">Selisih</th><th class="n">Akurasi</th></tr>`;
-  [...items].sort((a,b)=>b[4]-a[4]).slice(0,100).forEach((x,i)=>{const a=x[2]?100-Math.abs(x[2]-x[3])/x[2]*100:100;h+=`<tr><td>${i+1}</td><td>${x[0]}</td><td>${x[1]}</td><td class="n">${fmt(x[2])}</td><td class="n">${fmt(x[3])}</td><td class="n" style="color:${x[4]?"#f87171":"#4ade80"}">${fmt(x[4])}</td><td class="n">${a.toFixed(1)}%</td></tr>`;});
+  [...items].sort((a,b)=>b[4]-a[4]).slice(0,100).forEach((x,i)=>{const a=x[2]?100-Math.abs(x[2]-x[3])/x[2]*100:100;h+=`<tr><td>${i+1}</td><td>${x[0]}</td><td>${x[1]}</td><td class="n">${fmt(x[2])}</td><td class="n">${fmt(x[3])}</td><td class="n" style="color:${x[4]?"#f87171":"#4ade80"}">${fmt(x[4])}</td><td class="n">${a.toFixed(2)}%</td></tr>`;});
   document.getElementById("sItems").innerHTML=h;
   let h2=`<tr><th>Tgl</th><th class="n">SO</th><th class="n">Accurate</th><th class="n">Selisih</th><th class="n">Akurasi</th></tr>`;
-  dd.forEach(d=>{const r=(STK.daily||[])[d.i-1];h2+=`<tr><td><b>${d.i}</b></td><td class="n">${fmt(r.so)}</td><td class="n">${fmt(r.acc)}</td><td class="n" style="color:${d.sel?"#f87171":"#4ade80"}">${fmt(d.sel)}</td><td class="n">${d.acc.toFixed(1)}%</td></tr>`;});
+  dd.forEach(d=>{const r=(STK.daily||[])[d.i-1];h2+=`<tr><td><b>${d.i}</b></td><td class="n">${fmt(r.so)}</td><td class="n">${fmt(r.acc)}</td><td class="n" style="color:${d.sel?"#f87171":"#4ade80"}">${fmt(d.sel)}</td><td class="n">${d.acc.toFixed(2)}%</td></tr>`;});
   document.getElementById("sDaily").innerHTML=h2;
 }
-document.getElementById("btnSTampil").onclick=()=>{SRANGE={cari:document.getElementById("sCari").value.trim().toLowerCase()};renderStock();};
-document.getElementById("btnSReset").onclick=()=>{document.getElementById("sCari").value="";SRANGE={cari:""};renderStock();};
+document.getElementById("btnSTampil").onclick=()=>{const a=+document.getElementById("sDari").value||1,b=+document.getElementById("sSampai").value||31;SRANGE={cari:document.getElementById("sCari").value.trim().toLowerCase(),d0:Math.max(1,Math.min(a,31)),d1:Math.max(1,Math.min(b,31))};renderStock();};
+document.getElementById("btnSReset").onclick=()=>{document.getElementById("sCari").value="";document.getElementById("sDari").value=1;document.getElementById("sSampai").value=31;SRANGE={cari:"",d0:1,d1:31};renderStock();};
 document.getElementById("sCari").addEventListener("keydown",e=>{if(e.key==="Enter")document.getElementById("btnSTampil").click();});
 async function loadStockLive(){
   const st=document.getElementById("status");st.textContent="⏳ Mengunduh stock akurasi…";
@@ -462,7 +475,8 @@ function renderFulfil(){
   <div class="kpi"><small>Total Fisik</small><b>${fmt(Math.round(FI))}</b><span>${rFI.toFixed(1)}% dari SO • ${rFD.toFixed(1)}% dari DO</span></div>
   <div class="kpi"><small>Gap DO − SO</small><b style="color:${DO-SO<0?"#f87171":"#4ade80"}">${(DO-SO>=0?"+":"")+fmt(Math.round(DO-SO))}</b><span>Fisik − DO: ${(FI-DO>=0?"+":"")+fmt(Math.round(FI-DO))}</span></div>`;
   Object.values(uCharts).forEach(c=>c.destroy());uCharts={};
-  uCharts.month=new Chart(document.getElementById("uMonth"),{type:"bar",data:{labels:months,datasets:[{label:"SO",data:months.map(m=>Math.round(aggM(m).so)),backgroundColor:"#475569"},{label:"DO",data:months.map(m=>Math.round(aggM(m).doo)),backgroundColor:months.map(m=>isAll?"#38bdf8":(m===B?"#22c55e":"#475569"))},{label:"Fisik",data:months.map(m=>Math.round(aggM(m).fi)),backgroundColor:"#f59e0b"}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}}}});
+  const mShow=isAll?months:[B];
+  uCharts.month=new Chart(document.getElementById("uMonth"),{type:"bar",data:{labels:mShow,datasets:[{label:"SO",data:mShow.map(m=>Math.round(aggM(m).so)),backgroundColor:"#475569"},{label:"DO",data:mShow.map(m=>Math.round(aggM(m).doo)),backgroundColor:"#38bdf8"},{label:"Fisik",data:mShow.map(m=>Math.round(aggM(m).fi)),backgroundColor:"#f59e0b"}]},options:{plugins:{legend:{labels:{color:"#e2e8f0"}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}}}});
   // tren harian
   let dk=[],dSO=[],dDO=[],dFI=[];
   const allD=[...new Set(Object.keys(FUL.daily).map(k=>{const[a,b]=k.split("||");return (isAll||a===B)?b:null;}).filter(Boolean))].sort((a,b)=>uParseD(a)-uParseD(b));
@@ -494,11 +508,12 @@ async function loadFulfilLive(){
     const rows=parseCSV(t);
     const MON={oktober:"Oktober",september:"September",juli:"Juli",juni:"Juni",januari:"Januari",februari:"Februari",maret:"Maret",april:"April",mei:"Mei",agustus:"Agustus",november:"November",desember:"Desember"};
     let item_names=[],months=[],daily={},itemMonth={},cur=null,lastTgl="";
-    const rn=s=>{if(!s)return 0;const x=parseFloat(String(s).replace(/[^0-9.\-]/g,""));return isNaN(x)?0:x;};
+    const rn=s=>numID(s);
     rows.forEach((r,i)=>{
       const c1=(r[1]||"").trim();
       if(c1.toLowerCase()==="bulan"){
-        for(let j=i-1;j>=Math.max(0,i-5);j--){if((rows[j][5]||"").trim()&&!(rows[j][1]||"").trim()&&!(rows[j][4]||"").trim()){item_names=rows[j].slice(5).map(x=>(x||"").trim());break;}}
+        const SATS=["pack","pcs","bks","kg","dus","ctn","ikat","jrg","buku","paket","rim","set","ltr","pck"];
+        for(let j=i-1;j>=Math.max(0,i-5);j--){if((rows[j][5]||"").trim()&&!(rows[j][1]||"").trim()&&!(rows[j][4]||"").trim()){if(SATS.includes((rows[j][5]||"").trim().toLowerCase()))continue;item_names=rows[j].slice(5).map(x=>(x||"").trim());break;}}
         cur="__HDR__";lastTgl="";return;
       }
       if(cur===null)return;
@@ -507,7 +522,7 @@ async function loadFulfilLive(){
       const typ=(r[4]||"").trim().toUpperCase();
       if(!["SO","DO","FISIK"].includes(typ))return;
       const tgl=(r[2]||"").trim()||(r[3]||"").trim()||lastTgl;
-      if(!tgl)return;
+      if(!tgl||!/^\d{1,2}\s+\w+\s+\d{4}$/.test(tgl))return;
       lastTgl=tgl;let tot=0;
       for(let j=5;j<r.length;j++){const q=rn(r[j]);if(q){tot+=q;const inm=item_names[j-5]||"";if(inm){const k=cur+"||"+inm+"||"+typ;const e=itemMonth[k]=itemMonth[k]||[0,0];e[0]+=q;e[1]++;}}}
       daily[cur+"||"+tgl+"||"+typ]=(daily[cur+"||"+tgl+"||"+typ]||0)+tot;
@@ -535,16 +550,16 @@ function renderGmp(){
   const avg=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:0;
   const whAvg={}; whs.forEach(w=>{whAvg[w]=avg(months.map(m=>GMP.vals[m+"||"+w]).filter(v=>v!==null&&v!==undefined));});
   const selAvg=isAll?avg(whs.map(w=>whAvg[w])):whAvg[W];
-  const allV=months.flatMap(m=>whs.map(w=>({m,w,v:GMP.vals[m+"||"+w]}))).filter(x=>x.v!==null&&x.v!==undefined);
-  const best=[...allV].sort((a,b)=>b.v-a.v)[0]||{m:"—",w:"—",v:0};
-  const worst=[...allV].sort((a,b)=>a.v-b.v)[0]||{m:"—",w:"—",v:0};
-  const bestWh=Object.entries(whAvg).sort((a,b)=>b[1]-a[1])[0]||["—",0];
+  const pool=months.flatMap(m=>(isAll?whs:[W]).map(w=>({m,w,v:GMP.vals[m+"||"+w]}))).filter(x=>x.v!==null&&x.v!==undefined);
+  const best=[...pool].sort((a,b)=>b.v-a.v)[0]||{m:"—",w:"—",v:0};
+  const worst=[...pool].sort((a,b)=>a.v-b.v)[0]||{m:"—",w:"—",v:0};
+  const bestWh=isAll?(Object.entries(whAvg).sort((a,b)=>b[1]-a[1])[0]||["—",0]):[W,whAvg[W]||0];
   const worstWh=Object.entries(whAvg).sort((a,b)=>a[1]-b[1])[0]||["—",0];
   document.getElementById("gKpis").innerHTML=`
   <div class="kpi"><small>Rata-rata (${mLab})</small><b>${selAvg.toFixed(2)}</b><span>skor GMP</span></div>
-  <div class="kpi"><small>Skor Tertinggi</small><b style="color:#4ade80">${best.v.toFixed(2)}</b><span>${best.w} • ${best.m}</span></div>
-  <div class="kpi"><small>Skor Terendah</small><b style="color:#f87171">${worst.v.toFixed(2)}</b><span>${worst.w} • ${worst.m}</span></div>
-  <div class="kpi"><small>WH Terbaik (avg)</small><b style="font-size:15px">${bestWh[0]}</b><span>${bestWh[1].toFixed(2)}</span></div>
+  <div class="kpi"><small>Skor Tertinggi (${isAll?"nasional":W})</small><b style="color:#4ade80">${best.v.toFixed(2)}</b><span>${isAll?best.w+" • ":""}${best.m}</span></div>
+  <div class="kpi"><small>Skor Terendah (${isAll?"nasional":W})</small><b style="color:#f87171">${worst.v.toFixed(2)}</b><span>${isAll?worst.w+" • ":""}${worst.m}</span></div>
+  <div class="kpi"><small>${isAll?"WH Terbaik (avg)":"WH Terpilih (avg)"}</small><b style="font-size:15px">${bestWh[0]}</b><span>${bestWh[1].toFixed(2)}</span></div>
   <div class="kpi"><small>WH Perhatian (avg)</small><b style="font-size:15px">${worstWh[0]}</b><span>${worstWh[1].toFixed(2)}</span></div>`;
   Object.values(gCharts).forEach(c=>c.destroy());gCharts={};
   gCharts.trend=new Chart(document.getElementById("gTrend"),{type:"line",data:{labels:months,datasets:whs.map((w,i)=>({label:w,data:months.map(m=>GMP.vals[m+"||"+w]),borderColor:isAll?PAL[i%PAL.length]:(w===W?"#22c55e":"#475569"),borderWidth:isAll?2:(w===W?3:1),tension:.3,spanGaps:true}))},options:{plugins:{legend:{labels:{color:"#e2e8f0",boxWidth:12}}},scales:{x:{ticks:{color:"#94a3b8"}},y:{min:30,max:100,ticks:{color:"#94a3b8"}}}}});
@@ -636,7 +651,7 @@ document.getElementById("btnKRefresh").onclick=loadKomplainLive;
 let MPS=Object.assign({live:false,sections:[]},NEWDATA.mps);
 let MRANGE={sec:0};
 let mCharts={};
-const MFULL={Januari:0,Februari:1,Maret:2,April:3,Mei:4,Juni:5,Juli:6,Agustus:7,September:8,Oktober:9,November:10,Desember:11};
+const MFULL={Januari:0,Jan:0,Februari:1,Feb:1,Maret:2,Mar:2,April:3,Apr:3,Mei:4,May:4,Juni:5,Jun:5,Juli:6,Jul:6,Agustus:7,Agu:7,Aug:7,September:8,Sep:8,Sept:8,Oktober:9,Okt:9,Oct:9,November:10,Nov:10,Desember:11,Des:11,Dec:11};
 function mParseD(s){const m=String(s||"").match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);if(!m||MFULL[m[2]]===undefined)return null;return new Date(+m[3],MFULL[m[2]],+m[1]);}
 function mSecLabel(s,i){const ds=(s.dates||[]).filter(d=>mParseD(d.d));const range=ds.length?` (${ds[0].d} – ${ds[ds.length-1].d})`:"";return `${s.type} #${i+1}${range}`;}
 function renderMps(){
@@ -678,7 +693,7 @@ async function loadMpsLive(){
   try{
     const t=await fetch(`https://docs.google.com/spreadsheets/d/${NEWSHEET}/export?format=csv&gid=${GIDS.mps}`).then(r=>{if(!r.ok)throw 0;return r.text();});
     const rows=parseCSV(t);
-    const rn=s=>{if(!s)return 0;const x=parseFloat(String(s).replace(/[^0-9.\-]/g,""));return isNaN(x)?0:x;};
+    const rn=s=>numID(s);
     const secs=[];let cur=null;
     for(const r of rows){const c0=(r[0]||"").trim().toLowerCase();
       if(c0==="inbound"||c0==="outbound"){cur={type:r[0].trim(),dates:{}};secs.push(cur);continue;}
